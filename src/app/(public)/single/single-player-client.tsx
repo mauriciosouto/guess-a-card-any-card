@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AttemptsIndicator } from "@/components/game/AttemptsIndicator";
 import { GameHistoryPanel, type HistoryEntry } from "@/components/game/GameHistoryPanel";
 import { GuessCardAutocomplete } from "@/components/game/GuessCardAutocomplete";
+import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
 import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { StepIndicator } from "@/components/game/StepIndicator";
@@ -47,6 +48,7 @@ export function SinglePlayerClient() {
   const [guess, setGuess] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [asyncFeedback, setAsyncFeedback] = useState<string | null>(null);
   const stepStartedAt = useRef(Date.now());
 
   const loadSets = useCallback(async () => {
@@ -87,6 +89,7 @@ export function SinglePlayerClient() {
 
   async function onStart() {
     setBusy(true);
+    setAsyncFeedback("Drawing a veil from the archive…");
     setError(null);
     getOrCreateGuestId();
     try {
@@ -107,6 +110,7 @@ export function SinglePlayerClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
+      setAsyncFeedback(null);
       setBusy(false);
     }
   }
@@ -114,6 +118,7 @@ export function SinglePlayerClient() {
   async function onSubmitGuess() {
     if (!gameId) return;
     setBusy(true);
+    setAsyncFeedback("Sealing your guess — the archive listens…");
     setError(null);
     try {
       const timeTakenMs = Date.now() - stepStartedAt.current;
@@ -130,6 +135,7 @@ export function SinglePlayerClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Guess failed");
     } finally {
+      setAsyncFeedback(null);
       setBusy(false);
     }
   }
@@ -140,6 +146,7 @@ export function SinglePlayerClient() {
     setGame(null);
     setGuess("");
     setError(null);
+    setAsyncFeedback(null);
   }
 
   const historyEntries: HistoryEntry[] =
@@ -186,6 +193,10 @@ export function SinglePlayerClient() {
               <Link href="/">Home</Link>
             </Button>
           </div>
+          <PendingRitualNote
+            show={busy && Boolean(asyncFeedback)}
+            label={asyncFeedback ?? ""}
+          />
         </Panel>
       </div>
     );
@@ -275,6 +286,7 @@ export function SinglePlayerClient() {
             disabled={!inProgress || busy}
             placeholder="Exact card name (FaB)…"
             submitLabel="Seal guess"
+            asyncFeedback={busy ? asyncFeedback : null}
           />
         </Panel>
         <GameHistoryPanel entries={historyEntries} />

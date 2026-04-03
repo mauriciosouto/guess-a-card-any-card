@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
 import { StepIndicator } from "@/components/game/StepIndicator";
 import { TurnIndicator } from "@/components/game/TurnIndicator";
@@ -67,6 +68,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   const [needsJoin, setNeedsJoin] = useState(false);
   const [guess, setGuess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [asyncFeedback, setAsyncFeedback] = useState<string | null>(null);
   const stepStartedAt = useRef<number>(Date.now());
 
   const loadSets = useCallback(async () => {
@@ -127,6 +129,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   async function onJoin(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setAsyncFeedback("Crossing the threshold…");
     setError(null);
     try {
       const res = await coopFetch(`/rooms/${roomId}/join`, {
@@ -142,6 +145,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Join failed");
     } finally {
+      setAsyncFeedback(null);
       setBusy(false);
     }
   }
@@ -175,6 +179,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
 
   async function onStart() {
     setBusy(true);
+    setAsyncFeedback("Raising the veil…");
     try {
       const res = await coopFetch(`/rooms/${roomId}/start`, { method: "POST" });
       if (!res.ok) {
@@ -185,6 +190,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Start failed");
     } finally {
+      setAsyncFeedback(null);
       setBusy(false);
     }
   }
@@ -192,6 +198,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   async function onSubmitGuess() {
     if (!snap?.game) return;
     setBusy(true);
+    setAsyncFeedback("Weighing the name in the archive…");
     try {
       const timeTakenMs = Date.now() - stepStartedAt.current;
       const res = await coopFetch(`/games/${snap.game.id}/guess`, {
@@ -207,6 +214,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Guess failed");
     } finally {
+      setAsyncFeedback(null);
       setBusy(false);
     }
   }
@@ -252,6 +260,11 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
               Enter the circle
             </Button>
           </form>
+          <PendingRitualNote
+            show={busy && Boolean(asyncFeedback)}
+            label={asyncFeedback ?? ""}
+            className="mt-3 justify-center text-center"
+          />
           {error ? <p className="mt-3 text-center text-sm text-[var(--blood)]">{error}</p> : null}
           <p className="mt-6 text-center text-xs text-[var(--mist)]">
             <Link href="/coop" className="text-[var(--gold-dim)] underline-offset-4 hover:underline">
@@ -379,6 +392,11 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
               <Link href="/coop">Leave</Link>
             </Button>
           </div>
+          <PendingRitualNote
+            show={busy && Boolean(asyncFeedback)}
+            label={asyncFeedback ?? ""}
+            className="mt-4 justify-center text-center"
+          />
         </Panel>
       ) : null}
 
@@ -416,6 +434,11 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             >
               {g.requesterCanHostOverride ? "Speak for the absent (host)" : "Seal the guess"}
             </Button>
+            <PendingRitualNote
+              show={busy && Boolean(asyncFeedback)}
+              label={asyncFeedback ?? ""}
+              className="justify-center text-center"
+            />
           </div>
           <GameHistory guesses={g.guesses} />
         </div>

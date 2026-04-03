@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { singleFetch } from "@/lib/single/single-api";
@@ -27,6 +28,8 @@ export type GuessCardAutocompleteProps = {
   disabled?: boolean;
   placeholder?: string;
   submitLabel?: string;
+  /** Parent-driven: shown under the submit button while the guess is being verified on the server. */
+  asyncFeedback?: string | null;
 };
 
 /**
@@ -40,6 +43,7 @@ export function GuessCardAutocomplete({
   disabled,
   placeholder = "Card name…",
   submitLabel = "Submit",
+  asyncFeedback = null,
 }: GuessCardAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -132,6 +136,7 @@ export function GuessCardAutocomplete({
     <form
       onSubmit={handleSubmit}
       className="flex w-full flex-col gap-2"
+      aria-busy={Boolean(asyncFeedback)}
     >
       <div ref={rootRef} className="relative w-full">
         <Input
@@ -186,9 +191,17 @@ export function GuessCardAutocomplete({
           </ul>
         ) : null}
       </div>
-      <Button type="submit" disabled={disabled} className="shrink-0 self-end">
-        {submitLabel}
-      </Button>
+      <div className="flex w-full flex-col items-end gap-0">
+        <Button type="submit" disabled={disabled} className="shrink-0">
+          {submitLabel}
+        </Button>
+        <PendingRitualNote
+          show={Boolean(asyncFeedback)}
+          label={asyncFeedback ?? ""}
+          align="end"
+          className="max-w-full pl-2"
+        />
+      </div>
     </form>
   );
 }
