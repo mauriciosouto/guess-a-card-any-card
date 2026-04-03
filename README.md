@@ -27,6 +27,10 @@ npm run db:deploy
 
 Full policy, admin sync checklist, and references: **[docs/database.md](./docs/database.md)**.
 
+## Deploy (staging / pruebas reales)
+
+Vercel + Postgres compartido: migraciones en build, variables de entorno y notas Supabase → **[docs/deploy.md](./docs/deploy.md)**.
+
 ## Scripts
 
 | Script | Purpose |
