@@ -1,0 +1,325 @@
+// Guess a Card, Any Card — game app schema (shared Supabase Postgres with admin).
+// This repo owns Prisma migrations for that DB; admin mirrors. See docs/database.md.
+// Prisma 7: connection URL is in root `prisma.config.ts`, not in `datasource` below.
+// Prompt 2 (BLUEPRINT_PRO.md §28.2): entities, enums, indexes, guest-friendly nullables.
+// See docs/BLUEPRINT_PRO.md §12–13. Align `User.id` with Supabase `auth.users.id` when OAuth is wired.
+//
+// Guest invariants (enforce in app today; optional DB CHECK later):
+// - RoomPlayer: exactly one of userId / guestId should be set for active rows.
+// - GamePlayer: same; links to RoomPlayer.roomPlayerId when coming from multiplayer.
+// - Room: hostUserId XOR hostGuestId for who created the room (nullable until wired).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GameMode {
+  SINGLE
+  COMPETITIVE
+  COOP
+  CHALLENGE
+}
+
+enum RoomState {
+  LOBBY
+  COUNTDOWN
+  IN_PROGRESS
+  FINISHED
+  ABANDONED
+}
+
+enum GameStatus {
+  PENDING
+  IN_PROGRESS
+  WON
+  LOST
+  DRAW
+  CANCELLED
+}
+
+/// Registered player; id typically matches auth.users.id once Supabase Auth is connected.
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  displayName String   @map("display_name")
+  email       String?  @unique
+  provider    String?
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile           Profile?
+  roomsHosted       Room[]              @relation("RoomHost")
+  roomPlayers       RoomPlayer[]
+  gamesWon          Game[]              @relation("GameWinnerUser")
+  gamePlayers       GamePlayer[]
+  userStats         UserStat?
+  userCardStats     UserCardStat[]
+  hostPuzzleHistory HostPuzzleHistory[] @relation("HostHistoryUser")
+  userAchievements  UserAchievement[]
+
+  @@map("users")
+}
+
+model Profile {
+  userId            String   @id @map("user_id") @db.Uuid
+  preferredAvatarId String?  @map("preferred_avatar_id")
+  bio               String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+/// Shared with admin app — same table `Puzzle`. Admin authors content; game only reads (and uses extra columns below).
+model Puzzle {
+  id             String    @id @default(cuid())
+  dataSource     String
+  /// Flesh and Blood set code when the card comes from FAB (e.g. datasource filter `set`); null for legacy rows or non-FAB sources.
+  fabSet         String?
+  externalCardId String
+  cardName       String
+  imageUrl       String
+  seed           String
+  createdAt      DateTime  @default(now())
+  savedAt        DateTime?
+
+  /// Game app: random matchmaking & “available to play”. Admin can leave true for published rows.
+  isActive Boolean @default(true)
+
+  steps         PuzzleStep[]
+  games         Game[]
+  userCardStats UserCardStat[]
+  hostHistories HostPuzzleHistory[]
+
+  /// DB allows duplicates on (dataSource, externalCardId) today; add @@unique after admin data cleanup.
+  @@index([dataSource, externalCardId])
+  @@index([dataSource, isActive])
+}
+
+/// Shared with admin app — same table `PuzzleStep`. `imageUrl` is optional game-only column for pre-rendered step assets.
+model PuzzleStep {
+  id         String @id @default(cuid())
+  puzzleId   String
+  step       Int
+  blur       Float
+  brightness Float
+
+  /// When set (e.g. after export), use this URL; otherwise client can derive from `Puzzle.imageUrl` + blur/brightness.
+  imageUrl String?
+
+  puzzle Puzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([puzzleId, step])
+  @@index([puzzleId, step])
+}
+
+/// Multiplayer lobby / session container. Single-player may omit room or use a transient room.
+model Room {
+  id                  String    @id @default(uuid()) @db.Uuid
+  hostUserId          String?   @map("host_user_id") @db.Uuid
+  hostGuestId         String?   @map("host_guest_id")
+  mode                GameMode
+  state               RoomState
+  selectedSets        String[]  @default([]) @map("selected_sets")
+  timerPerStepSeconds Int?      @map("timer_per_step_seconds")
+  currentGameId       String?   @unique @map("current_game_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  hostUser    User?        @relation("RoomHost", fields: [hostUserId], references: [id], onDelete: SetNull)
+  roomPlayers RoomPlayer[]
+  games       Game[]       @relation("RoomGames")
+  currentGame Game?        @relation("RoomCurrentGame", fields: [currentGameId], references: [id], onDelete: SetNull)
+
+  @@index([hostUserId])
+  @@index([hostGuestId])
+  @@map("rooms")
+}
+
+/// Either userId or guestId should be set (enforce in application or DB CHECK migration).
+model RoomPlayer {
+  id          String    @id @default(uuid()) @db.Uuid
+  roomId      String    @map("room_id") @db.Uuid
+  userId      String?   @map("user_id") @db.Uuid
+  guestId     String?   @map("guest_id")
+  displayName String    @map("display_name")
+  avatarId    String?   @map("avatar_id")
+  isHost      Boolean   @default(false) @map("is_host")
+  turnOrder   Int?      @map("turn_order")
+  joinedAt    DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  leftAt      DateTime? @map("left_at") @db.Timestamptz(6)
+  isConnected Boolean   @default(true) @map("is_connected")
+
+  room              Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user              User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  gamePlayers       GamePlayer[]
+  activeTurnInGames Game[]       @relation("GameActiveTurn")
+
+  @@index([roomId, joinedAt])
+  /// Lookup “is this guest already seated?” (composite helps partial guestId matches).
+  @@index([roomId, guestId])
+  @@map("room_players")
+}
+
+model Game {
+  id                       String     @id @default(uuid()) @db.Uuid
+  roomId                   String?    @map("room_id") @db.Uuid
+  mode                     GameMode
+  puzzleId                 String     @map("puzzle_id")
+  status                   GameStatus
+  /// 1-based step index while COOP/COMPETITIVE run (null before start).
+  currentStep              Int?       @map("current_step")
+  /// Room player whose turn it is (COOP).
+  activeTurnRoomPlayerId   String?    @map("active_turn_room_player_id") @db.Uuid
+  startedAt                DateTime   @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt               DateTime?  @map("finished_at") @db.Timestamptz(6)
+  winnerUserId             String?    @map("winner_user_id") @db.Uuid
+  winnerGuestId            String?    @map("winner_guest_id")
+  winningAttemptCount      Int?       @map("winning_attempt_count")
+  winningTotalTimeMs       Int?       @map("winning_total_time_ms")
+  createdAt                DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  room                  Room?        @relation("RoomGames", fields: [roomId], references: [id], onDelete: SetNull)
+  roomCurrent           Room?        @relation("RoomCurrentGame")
+  puzzle                Puzzle       @relation(fields: [puzzleId], references: [id])
+  winnerUser            User?        @relation("GameWinnerUser", fields: [winnerUserId], references: [id], onDelete: SetNull)
+  activeTurnRoomPlayer  RoomPlayer?  @relation("GameActiveTurn", fields: [activeTurnRoomPlayerId], references: [id], onDelete: SetNull)
+  gamePlayers           GamePlayer[]
+  guesses               Guess[]
+
+  @@index([roomId])
+  @@index([puzzleId])
+  @@index([status])
+  @@index([activeTurnRoomPlayerId])
+  @@map("games")
+}
+
+/// Snapshot of a player for this game; links back to room player when from multiplayer.
+model GamePlayer {
+  id                String   @id @default(uuid()) @db.Uuid
+  gameId            String   @map("game_id") @db.Uuid
+  roomPlayerId      String?  @map("room_player_id") @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  guestId           String?  @map("guest_id")
+  displayName       String   @map("display_name")
+  avatarId          String?  @map("avatar_id")
+  finalRank         Int?     @map("final_rank")
+  solvedAtStep      Int?     @map("solved_at_step")
+  solvedTotalTimeMs Int?     @map("solved_total_time_ms")
+  didWin            Boolean  @default(false) @map("did_win")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  roomPlayer RoomPlayer? @relation(fields: [roomPlayerId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guesses    Guess[]
+
+  @@index([gameId])
+  @@index([gameId, roomPlayerId])
+  @@index([userId])
+  @@index([guestId])
+  @@map("game_players")
+}
+
+model Guess {
+  id                      String   @id @default(uuid()) @db.Uuid
+  gameId                  String   @map("game_id") @db.Uuid
+  gamePlayerId            String   @map("game_player_id") @db.Uuid
+  stepNumber              Int      @map("step_number")
+  guessText               String   @map("guess_text")
+  normalizedGuessText     String   @map("normalized_guess_text")
+  isCorrect               Boolean  @map("is_correct")
+  timeTakenMs             Int      @map("time_taken_ms")
+  /// COOP: host spoke for the absent active player (allowed when they are disconnected).
+  submittedByHostOverride Boolean  @default(false) @map("submitted_by_host_override")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  game       Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  gamePlayer GamePlayer @relation(fields: [gamePlayerId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, gamePlayerId, stepNumber])
+  /// Fast path: “already a guess for this step?” (e.g. COOP one guess / step).
+  @@index([gameId, stepNumber])
+  @@map("guesses")
+}
+
+model UserStat {
+  userId               String   @id @map("user_id") @db.Uuid
+  gamesPlayed          Int      @default(0) @map("games_played")
+  gamesWon             Int      @default(0) @map("games_won")
+  gamesLost            Int      @default(0) @map("games_lost")
+  averageAttemptsToWin Decimal? @map("average_attempts_to_win") @db.Decimal(6, 2)
+  bestAttemptsRecord   Int?     @map("best_attempts_record")
+  bestTimeRecordMs     Int?     @map("best_time_record_ms")
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stats")
+}
+
+model UserCardStat {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  puzzleId        String   @map("puzzle_id")
+  timesPlayed     Int      @default(0) @map("times_played")
+  timesWon        Int      @default(0) @map("times_won")
+  averageAttempts Decimal? @map("average_attempts") @db.Decimal(6, 2)
+  averageTimeMs   Decimal? @map("average_time_ms") @db.Decimal(12, 2)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  puzzle Puzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, puzzleId])
+  @@index([userId])
+  @@map("user_card_stats")
+}
+
+/// Tracks puzzles a host has seen recently for de-duplication / rotation.
+model HostPuzzleHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  hostUserId   String?  @map("host_user_id") @db.Uuid
+  hostGuestId  String?  @map("host_guest_id")
+  puzzleId     String   @map("puzzle_id")
+  lastPlayedAt DateTime @default(now()) @map("last_played_at") @db.Timestamptz(6)
+
+  hostUser User?  @relation("HostHistoryUser", fields: [hostUserId], references: [id], onDelete: Cascade)
+  puzzle   Puzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@index([hostUserId, lastPlayedAt])
+  @@index([hostGuestId, lastPlayedAt])
+  @@map("host_puzzle_history")
+}
+
+model Achievement {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  achievementId String   @map("achievement_id") @db.Uuid
+  unlockedAt    DateTime @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}

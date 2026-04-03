@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Guess a Card, Any Card
 
-## Getting Started
+Next.js game client for **Flesh and Blood**-style veiled-card guessing (single-player, coop, and more). Shares a PostgreSQL database with **`image-guess-admin`**.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install            # runs `prisma generate` → outputs client under `src/generated/prisma` (gitignored)
+cp .env.example .env   # if present; set DATABASE_URL
+npm run db:deploy      # apply Prisma migrations (shared DB)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Prisma 7:** `DATABASE_URL` is read from **`prisma.config.ts`** (CLI) and from the environment at runtime (`pg` adapter in `src/lib/prisma.ts`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open [http://localhost:3000](http://localhost:3000).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database & migrations
 
-## Learn More
+This repository **owns** Prisma migrations for the **shared** database. **`image-guess-admin` must not** run `prisma migrate dev` / author divergent migration history against that database; it mirrors our `prisma/migrations/` after each merge and runs `prisma generate`.
 
-To learn more about Next.js, take a look at the following resources:
+**Deploy:** run migrations as part of release (before the app starts):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run db:deploy
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Full policy, admin sync checklist, and references: **[docs/database.md](./docs/database.md)**.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` / `npm start` | Production build & serve |
+| `npm run lint` / `npm test` | ESLint, Vitest |
+| `npm run db:generate` | `prisma generate` |
+| `npm run db:migrate:dev` | `prisma migrate dev` (local; **game repo only** for shared DB) |
+| `npm run db:deploy` | `prisma migrate deploy` — **use in CI/staging/prod** for this app |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Learn more
+
+- [Next.js Documentation](https://nextjs.org/docs)

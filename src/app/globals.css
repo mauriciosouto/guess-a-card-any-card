@@ -1,26 +1,276 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --void: #0c0612;
+  --void-deep: #06040a;
+  --plum: #140818;
+  --plum-mid: #1f0f28;
+  --wine: #2a0a14;
+  --wine-deep: #1c080e;
+  --blood: #8b2942;
+  --blood-dim: #5c1a2e;
+  --gold: #c9a227;
+  --gold-dim: #8a6b1c;
+  --gold-bright: #f0e4b8;
+  --parchment: #f4ead8;
+  --parchment-dim: #c9beb0;
+  --mist: #b8a8bc;
+  --glow-gold: rgba(232, 208, 137, 0.45);
+  --glow-blood: rgba(200, 60, 90, 0.35);
+  --glow-void: rgba(88, 40, 120, 0.4);
+  /** Veiled / blackout tiles over the card — charcoal, not pure black */
+  --card-zone-mask: #1e1e26;
+
+  --background: var(--void);
+  --foreground: var(--parchment);
+  --muted: var(--mist);
+  --accent: var(--gold);
+  --accent-bright: var(--gold-bright);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-void: var(--void);
+  --color-plum: var(--plum);
+  --color-wine: var(--wine);
+  --color-blood: var(--blood);
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-parchment: var(--parchment);
+  --color-parchment-dim: var(--parchment-dim);
+  --color-mist: var(--mist);
+  --color-wine-deep: var(--wine-deep);
+  --color-plum-mid: var(--plum-mid);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cinzel), "Cinzel", ui-serif, serif;
+  --font-heading: var(--font-cinzel), "Cinzel", ui-serif, serif;
   --font-mono: var(--font-geist-mono);
+  --shadow-glow-gold: 0 0 24px var(--glow-gold), 0 0 48px rgba(201, 162, 39, 0.12);
+  --shadow-glow-blood: 0 0 28px var(--glow-blood);
+  --shadow-panel-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes ambient-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(-2%, 1%) scale(1.05);
+    opacity: 0.5;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes shimmer-gold {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes pulse-glow-win {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(46, 160, 120, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 40px rgba(74, 222, 128, 0.45),
+      0 0 80px rgba(34, 197, 94, 0.15);
+  }
+}
+
+@keyframes shake-lose {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes slide-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes rune-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 4px var(--glow-gold));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(201, 162, 39, 0.6));
+  }
+}
+
+@keyframes dust-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  ::selection {
+    background: rgba(201, 162, 39, 0.35);
+    color: var(--void);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .magical-app-bg {
+    background-color: var(--void-deep);
+    background-image:
+      linear-gradient(
+        180deg,
+        rgba(12, 6, 18, 0.92) 0%,
+        rgba(20, 8, 24, 0.88) 45%,
+        rgba(26, 10, 18, 0.92) 100%
+      ),
+      url("/assets/bg.png");
+    background-size: auto, cover;
+    background-position: center top, center center;
+    background-repeat: no-repeat, no-repeat;
+    background-attachment: fixed, fixed;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(
+      135deg,
+      var(--gold-bright) 0%,
+      var(--gold) 45%,
+      var(--gold-dim) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .animate-slide-step {
+    animation: slide-step-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-pulse-win {
+    animation: pulse-glow-win 1.8s ease-in-out infinite;
+  }
+
+  .animate-shake-lose {
+    animation: shake-lose 0.55s ease-in-out;
+  }
+
+  .particle-layer {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .particle-layer::before,
+  .particle-layer::after {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background-image:
+      radial-gradient(
+        circle at 15% 25%,
+        rgba(201, 162, 39, 0.08) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        circle at 85% 70%,
+        rgba(139, 41, 66, 0.12) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 50% 100%,
+        rgba(88, 40, 120, 0.15) 0%,
+        transparent 55%
+      );
+    animation: ambient-float 18s ease-in-out infinite;
+    opacity: 0.7;
+  }
+
+  .particle-layer::after {
+    animation-delay: -9s;
+    animation-duration: 22s;
+    opacity: 0.5;
+    background-image: radial-gradient(
+        1.5px 1.5px at 10% 20%,
+        rgba(240, 228, 184, 0.35),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 70% 40%,
+        rgba(232, 208, 137, 0.25),
+        transparent
+      ),
+      radial-gradient(
+        1px 1px at 30% 80%,
+        rgba(200, 160, 200, 0.2),
+        transparent
+      ),
+      radial-gradient(
+        1.5px 1.5px at 90% 60%,
+        rgba(240, 228, 184, 0.2),
+        transparent
+      );
+    background-size:
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%;
+    animation: dust-twinkle 6s ease-in-out infinite;
+  }
 }

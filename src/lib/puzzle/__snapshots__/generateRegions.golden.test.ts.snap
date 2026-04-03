@@ -1,0 +1,298 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateRegions golden parity > step 1 full snapshot 1`] = `
+[
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 12,
+    "id": "pitch-mask",
+    "width": 20,
+    "x": 0,
+    "y": 0,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 12,
+    "id": "name-mask",
+    "width": 60,
+    "x": 20,
+    "y": 0,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 12,
+    "id": "cost-mask",
+    "width": 20,
+    "x": 80,
+    "y": 0,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-0",
+    "width": 23.5,
+    "x": 0.75,
+    "y": 12.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-1",
+    "width": 23.5,
+    "x": 25.75,
+    "y": 12.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-2",
+    "width": 23.5,
+    "x": 50.74999999999999,
+    "y": 12.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-3",
+    "width": 23.5,
+    "x": 75.75,
+    "y": 12.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-4",
+    "width": 23.5,
+    "x": 0.75,
+    "y": 31.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-5",
+    "width": 23.5,
+    "x": 25.75,
+    "y": 31.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-6",
+    "width": 23.5,
+    "x": 50.74999999999999,
+    "y": 31.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-7",
+    "width": 23.5,
+    "x": 75.75,
+    "y": 31.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-8",
+    "width": 23.5,
+    "x": 0.75,
+    "y": 49.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-9",
+    "width": 23.5,
+    "x": 25.75,
+    "y": 49.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-10",
+    "width": 23.5,
+    "x": 50.74999999999999,
+    "y": 49.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-11",
+    "width": 23.5,
+    "x": 75.75,
+    "y": 49.555,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-12",
+    "width": 23.5,
+    "x": 0.75,
+    "y": 68.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-13",
+    "width": 23.5,
+    "x": 25.75,
+    "y": 68.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-14",
+    "width": 23.5,
+    "x": 50.74999999999999,
+    "y": 68.055,
+  },
+  {
+    "effects": [
+      {
+        "intensity": 28,
+        "type": "blur",
+      },
+    ],
+    "height": 17.39,
+    "id": "art-1-cell-15",
+    "width": 23.5,
+    "x": 75.75,
+    "y": 68.055,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 6.3,
+    "id": "type-mask",
+    "width": 54,
+    "x": 23,
+    "y": 86,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 14.28,
+    "id": "attack-mask",
+    "width": 22.4,
+    "x": 0,
+    "y": 86,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 14.28,
+    "id": "defense-mask",
+    "width": 22.4,
+    "x": 77.6,
+    "y": 86,
+  },
+  {
+    "effects": [
+      {
+        "type": "blackout",
+      },
+    ],
+    "height": 6.3,
+    "id": "cardInfo-mask",
+    "width": 54,
+    "x": 23,
+    "y": 93,
+  },
+]
+`;

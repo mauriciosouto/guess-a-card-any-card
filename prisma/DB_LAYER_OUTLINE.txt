@@ -1,0 +1,63 @@
+Prompt 2 — repository / service layer map (BLUEPRINT_PRO.md §28.2)
+================================================================
+
+Puzzle access (read-only; admin authors Puzzle / PuzzleStep)
+--------------------------------------------------------------
+Repositories:
+  src/server/repositories/puzzle-repository.ts
+    - listActiveSetNames()           — distinct Puzzle.dataSource for playable rows
+    - listRecentPuzzleIdsForHost() — de-dupe input for random pick
+    - pickRandomPuzzle()            — random row in sets, optional excludes
+    - recordHostPuzzlePlayed()     — append HostPuzzleHistory row
+
+Services:
+  src/server/services/puzzle-service.ts
+    - getAvailableSets()
+    - resolvePuzzleForNewGame({ selectedSets, host?, recentHistoryLimit? })
+    - notifyPuzzleCompletedForHost(host, puzzleId)
+
+Single-player (Prompt 3 — BLUEPRINT_PRO.md §28.3)
+------------------------------------------------
+Pure domain:
+  src/lib/game/single-player-logic.ts
+    - resolveSinglePlayerGuess()   — win / lose / advance step
+    - singlePlayerAttemptCounts() — UI used / remaining
+
+Services & HTTP:
+  src/server/services/single-player-service.ts
+    - startSinglePlayerGame(), getSinglePlayerGamePublic(), submitSinglePlayerGuess()
+    - optional X-User-Id (registered → stats); else X-Guest-Id
+  src/server/single-player-routes.ts  — /api/single/sets | POST /games | GET/POST .../guess
+
+Stats & profile aggregates
+--------------------------
+Repositories:
+  src/server/repositories/stats-repository.ts
+    - ensureUserStatRow(userId)
+    - applyGameOutcomeToUserStats(outcome)     — UserStat counters + bests
+    - mergeUserCardStatsAfterGame(args)        — UserCardStat per puzzle rolling averages
+
+Services:
+  src/server/services/stats-service.ts
+    - recordRegisteredUserGameOutcome() — thin wrapper for game completion hooks
+
+Multiplayer / COOP persistence
+------------------------------------------
+  src/server/services/coop-service.ts — rooms, games, guesses (uses Prisma directly;
+    future: extract room-repository.ts / game-repository.ts if file size warrants).
+
+Deterministic FAB overlays (image-guess-admin parity)
+------------------------------------------------------
+  src/lib/utils/seededRandom.ts
+  src/lib/puzzle/zones/fabZones.ts
+  src/lib/puzzle/effects/types.ts
+  src/lib/puzzle/regionTypes.ts
+  src/lib/puzzle/deterministicStep.ts   — PUZZLE_STEP_COUNT, getShuffledCells, generateStep
+  src/lib/puzzle/generateRegions.ts
+  src/components/game/StepCardPreview.tsx — client render (seed + step + imageUrl)
+  Single/coop APIs expose puzzle.seed + puzzle.imageUrl as cardImageUrl for overlays.
+
+Conventions
+-----------
+  - Guests: pass hostGuestId / guestId; registered users use hostUserId / userId.
+  - Never run migrate reset on shared Supabase — see MIGRATION_STRATEGY.txt.
