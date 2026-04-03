@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GuessCardAutocomplete } from "@/components/game/GuessCardAutocomplete";
 import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
 import { StepIndicator } from "@/components/game/StepIndicator";
@@ -69,6 +70,8 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   const [guess, setGuess] = useState("");
   const [busy, setBusy] = useState(false);
   const [asyncFeedback, setAsyncFeedback] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [copyLinkFailed, setCopyLinkFailed] = useState(false);
   const stepStartedAt = useRef<number>(Date.now());
 
   const loadSets = useCallback(async () => {
@@ -125,6 +128,22 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
       return ao - bo;
     });
   }, [snap]);
+
+  const seerCount = orderedPlayers.length;
+  const canRaiseVeil = seerCount >= 2;
+
+  async function copyCircleLink() {
+    setCopyLinkFailed(false);
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2800);
+    } catch {
+      setCopyLinkFailed(true);
+      window.setTimeout(() => setCopyLinkFailed(false), 5000);
+    }
+  }
 
   async function onJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -314,8 +333,39 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
           </h2>
           <p className="mt-2 text-sm text-[var(--parchment-dim)]">
             Speaking order is cast when the host opens the omen. Choose one or more sets (host only),
-            then begin.
+            then begin — but the veil demands <strong className="text-[var(--parchment)]">at least two seers</strong>{" "}
+            at the table.
           </p>
+
+          <div className="mt-6 rounded-lg border border-[var(--gold)]/12 bg-[var(--void)]/35 px-4 py-4 sm:px-5 sm:py-5">
+            <p className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.24em] text-[var(--gold-dim)]">
+              Bind another soul
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--parchment-dim)]">
+              This circle lives at a single <strong className="text-[var(--parchment)]">knot in the weave</strong> —
+              share the link so your allies may join in their own scrolls. When enough seers have crossed the
+              threshold, the host may raise the veil.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4 border-[var(--gold)]/35"
+              onClick={() => void copyCircleLink()}
+            >
+              {linkCopied ? "Sealed to your clipboard" : "Copy circle link"}
+            </Button>
+            {linkCopied ? (
+              <p className="mt-2 font-display text-[0.65rem] uppercase tracking-[0.18em] text-[var(--gold-bright)]">
+                Copied — send it when the stars align.
+              </p>
+            ) : null}
+            {copyLinkFailed ? (
+              <p className="mt-2 text-xs text-[var(--blood)]">
+                The rite forbade copying — trace the knot from the address bar with your own hand.
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-6">
             <p className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
@@ -376,15 +426,13 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
                 })
               )}
             </div>
-            <p className="mt-2 text-[0.7rem] text-[var(--mist)]">
-              Only the host toggles FAB set filters. Invite others by sharing this page URL.
-            </p>
+            <p className="mt-2 text-[0.7rem] text-[var(--mist)]">Only the host toggles FAB set filters.</p>
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button
               onClick={() => void onStart()}
-              disabled={busy || !snap.requesterIsHost}
+              disabled={busy || !snap.requesterIsHost || !canRaiseVeil}
             >
               Open the veil
             </Button>
@@ -397,6 +445,12 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             label={asyncFeedback ?? ""}
             className="mt-4 justify-center text-center"
           />
+          {snap.requesterIsHost && !canRaiseVeil ? (
+            <p className="mt-4 text-center text-xs leading-relaxed text-[var(--gold-dim)]">
+              The rite waits: summon one more seer with the link above — two voices are required before the
+              veil may rise.
+            </p>
+          ) : null}
         </Panel>
       ) : null}
 
@@ -411,35 +465,28 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             className="max-w-lg"
           />
           <StepIndicator current={g.currentStep ?? 1} total={PUZZLE_STEP_COUNT} />
-          <TurnIndicator activePlayerName={g.activePlayerDisplayName ?? undefined} />
+          <div className="mx-2 w-full max-w-md sm:mx-4">
+            <TurnIndicator activePlayerName={g.activePlayerDisplayName ?? undefined} />
+          </div>
           {g.requesterCanHostOverride ? (
-            <p className="max-w-md text-center text-xs text-[var(--gold-dim)]">
+            <p className="max-w-md px-2 text-center text-xs text-[var(--gold-dim)] sm:px-4">
               The active seer is marked <strong className="text-[var(--gold-bright)]">absent</strong> — you
               may speak for them as host.
             </p>
           ) : null}
-          <div className="flex w-full max-w-md flex-col gap-3">
-            <Input
-              placeholder="Name the card…"
+          <Panel variant="subtle" className="w-full max-w-md border-[var(--gold)]/12 px-3 py-4 sm:px-5 sm:py-5">
+            <GuessCardAutocomplete
               value={guess}
-              onChange={(e) => setGuess(e.target.value)}
+              onChange={setGuess}
+              onSubmit={() => void onSubmitGuess()}
               disabled={!g.requesterCanSubmit || busy}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void onSubmitGuess();
-              }}
+              placeholder="Exact card name (FaB)…"
+              submitLabel={
+                g.requesterCanHostOverride ? "Speak for the absent (host)" : "Seal the guess"
+              }
+              asyncFeedback={busy ? asyncFeedback : null}
             />
-            <Button
-              onClick={() => void onSubmitGuess()}
-              disabled={!g.requesterCanSubmit || busy || !guess.trim()}
-            >
-              {g.requesterCanHostOverride ? "Speak for the absent (host)" : "Seal the guess"}
-            </Button>
-            <PendingRitualNote
-              show={busy && Boolean(asyncFeedback)}
-              label={asyncFeedback ?? ""}
-              className="justify-center text-center"
-            />
-          </div>
+          </Panel>
           <GameHistory guesses={g.guesses} />
         </div>
       ) : null}

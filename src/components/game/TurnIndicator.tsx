@@ -6,7 +6,10 @@ export type TurnIndicatorProps = {
 
 export function TurnIndicator({ activePlayerName }: TurnIndicatorProps) {
   return (
-    <Panel variant="subtle" className="border-[var(--gold)]/10 text-center text-sm text-[var(--parchment-dim)]">
+    <Panel
+      variant="subtle"
+      className="mx-auto w-full max-w-md border-[var(--gold)]/10 px-4 py-4 text-center text-sm text-[var(--parchment-dim)] sm:px-6 sm:py-5"
+    >
       {activePlayerName ? (
         <>
           <span className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--gold-dim)]">

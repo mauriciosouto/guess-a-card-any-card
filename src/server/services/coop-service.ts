@@ -196,7 +196,12 @@ export async function startCoopGame(params: {
 
   if (!room || room.mode !== "COOP") throw new CoopHttpError(404, "Circle not found.");
   if (room.state !== "LOBBY") throw new CoopHttpError(409, "A game already binds this room.");
-  if (room.roomPlayers.length === 0) throw new CoopHttpError(400, "No seers at the table.");
+  if (room.roomPlayers.length < 2) {
+    throw new CoopHttpError(
+      400,
+      "Bind at least two seers before raising the veil — share the circle link and wait for another soul.",
+    );
+  }
   const hostKey = asHostKey(room);
   const puzzle = await resolvePuzzleForNewGame({
     selectedFabSets: room.selectedSets,
