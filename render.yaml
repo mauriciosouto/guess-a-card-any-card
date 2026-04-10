@@ -1,0 +1,11 @@
+# Render: Web Service for the Hono API (DB, REST). Set root to this repo; see docs/deploy.md.
+services:
+  - type: web
+    name: gac-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run db:deploy --workspace=@gac/api
+    startCommand: npm run start:api
+    envVars:
+      - key: NODE_VERSION
+        value: "20.9.0"

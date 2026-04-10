@@ -5,46 +5,29 @@
   "engines": {
     "node": ">=20.9.0"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
+    "dev": "npm run dev --workspace=@gac/web",
+    "dev:web": "npm run dev --workspace=@gac/web",
+    "dev:api": "npm run dev --workspace=@gac/api",
+    "build": "npm run build --workspace=@gac/web",
+    "build:api": "npm run build --workspace=@gac/api",
+    "start": "npm run start --workspace=@gac/web",
+    "start:api": "npm run start --workspace=@gac/api",
+    "lint": "npm run lint --workspace=@gac/web",
     "test": "vitest run",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:push": "prisma db push",
-    "db:seed": "prisma db seed",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
-  },
-  "dependencies": {
-    "@flesh-and-blood/cards": "^3.6.239",
-    "@prisma/adapter-pg": "^7.5.0",
-    "@prisma/client": "^7.5.0",
-    "dotenv": "^16.4.7",
-    "pg": "^8.14.0",
-    "@radix-ui/react-slot": "^1.2.4",
-    "clsx": "^2.1.1",
-    "hono": "^4.12.9",
-    "next": "16.2.2",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "tailwind-merge": "^3.5.0",
-    "zustand": "^5.0.12"
+    "db:generate": "npm run db:generate --workspace=@gac/api",
+    "db:migrate:dev": "npm run db:migrate:dev --workspace=@gac/api",
+    "db:deploy": "npm run db:deploy --workspace=@gac/api",
+    "db:push": "npm run db:push --workspace=@gac/api",
+    "db:seed": "npm run db:seed --workspace=@gac/api",
+    "db:studio": "npm run db:studio --workspace=@gac/api",
+    "realtime:dev": "npm run realtime:dev --workspace=@gac/api"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.2",
-    "prisma": "^7.5.0",
-    "tailwindcss": "^4",
-    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.2"
   }

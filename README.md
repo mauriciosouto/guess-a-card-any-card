@@ -2,24 +2,35 @@
 
 Next.js game client for **Flesh and Blood**-style veiled-card guessing (single-player, coop, and more). Shares a PostgreSQL database with **`image-guess-admin`**.
 
-## Setup
+## Monorepo
+
+- **`apps/web`** — Next.js UI (típico: **Vercel**).
+- **`apps/api`** — Hono + Prisma + REST bajo `/api/*` (típico: **Render** u otro Node).
+- **`packages/shared`** — Tipos compartidos (p. ej. snapshot co-op, protocolo WebSocket).
+
+## Setup local
 
 ```bash
-npm install            # runs `prisma generate` → outputs client under `src/generated/prisma` (gitignored)
-cp .env.example .env   # if present; set DATABASE_URL
-npm run db:deploy      # apply Prisma migrations (shared DB)
-npm run dev
+npm install
+cp .env.example .env    # DATABASE_URL para la API; ver comentarios por app
+npm run db:deploy       # migraciones (workspace @gac/api)
 ```
 
-**Prisma 7:** `DATABASE_URL` is read from **`prisma.config.ts`** (CLI) and from the environment at runtime (`pg` adapter in `src/lib/prisma.ts`).
+**Solo front** (sin API, no hay datos):
 
-Open [http://localhost:3000](http://localhost:3000).
+```bash
+npm run dev --workspace=@gac/web
+```
+
+**API + front** (recomendado): terminal A `npm run dev:api`, terminal B `npm run dev` (web). En **desarrollo**, Next ya reenvía `/api/*` a `http://127.0.0.1:8787` por defecto; podés sobreescribir con `API_PROXY_TARGET` en `apps/web/.env.local` si la API corre en otro host/puerto.
+
+**Prisma:** esquema y migraciones en **`apps/api/prisma`**. El cliente se genera en `apps/api/src/generated/prisma` (ignorado por git). En `apps/api/prisma.config.ts`, `DATABASE_URL` puede faltar solo para `prisma generate` en entornos sin DB.
 
 ## Database & migrations
 
-This repository **owns** Prisma migrations for the **shared** database. **`image-guess-admin` must not** run `prisma migrate dev` / author divergent migration history against that database; it mirrors our `prisma/migrations/` after each merge and runs `prisma generate`.
+This repository **owns** Prisma migrations for the **shared** database. **`image-guess-admin` must not** run `prisma migrate dev` / author divergent migration history against that database; it mirrors our `apps/api/prisma/migrations/` after each merge and runs `npx prisma generate`.
 
-**Deploy:** run migrations as part of release (before the app starts):
+**Deploy:** run migrations as part of the API release:
 
 ```bash
 npm run db:deploy
@@ -27,20 +38,22 @@ npm run db:deploy
 
 Full policy, admin sync checklist, and references: **[docs/database.md](./docs/database.md)**.
 
-## Deploy (staging / pruebas reales)
+## Deploy (staging / producción)
 
-Vercel + Postgres compartido: migraciones en build, variables de entorno y notas Supabase → **[docs/deploy.md](./docs/deploy.md)**.
+Front **Vercel**, API **Render** (u otro), variables y proxy: **[docs/deploy.md](./docs/deploy.md)**.
 
-## Scripts
+## Scripts (raíz)
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Next.js dev server |
-| `npm run build` / `npm start` | Production build & serve |
-| `npm run lint` / `npm test` | ESLint, Vitest |
-| `npm run db:generate` | `prisma generate` |
-| `npm run db:migrate:dev` | `prisma migrate dev` (local; **game repo only** for shared DB) |
-| `npm run db:deploy` | `prisma migrate deploy` — **use in CI/staging/prod** for this app |
+| `npm run dev` / `dev:web` | Next en `apps/web` |
+| `npm run dev:api` | Hono en `apps/api` (puerto 8787 o `PORT`) |
+| `npm run build` / `start` | Build y `next start` del web |
+| `npm run start:api` | API en producción (`tsx`) |
+| `npm run lint` | ESLint del web |
+| `npm test` | Vitest (web + shared) |
+| `npm run db:*` | Prisma vía workspace `@gac/api` |
+| `npm run realtime:dev` | Servidor WS co-op (workspace API) |
 
 ## Learn more
 
