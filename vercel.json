@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build --workspace=@gac/web"
+  "buildCommand": "npm run build --workspace=@gac/web && rm -rf .next && ln -s apps/web/.next .next"
 }
