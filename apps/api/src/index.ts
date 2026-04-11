@@ -1,6 +1,6 @@
 import "./load-env";
 import { serve } from "@hono/node-server";
-import { app } from "./server/hono";
+import { app } from "./server/http-app";
 
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? "8787") || 8787;
 

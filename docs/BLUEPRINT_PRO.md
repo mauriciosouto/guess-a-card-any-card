@@ -462,7 +462,7 @@ Separar claramente:
       /utils
       /config
     /server
-      hono.ts
+      http-app.ts
       websocket.ts
       room-handlers.ts
       game-engine.ts

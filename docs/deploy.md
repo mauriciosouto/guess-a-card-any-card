@@ -1,12 +1,14 @@
-# Publicar el juego (Vercel + Render)
+# Publicar el juego (Vercel + Render / Netlify)
 
 El repo es un **monorepo npm**:
 
 | Paquete | Rol | Deploy típico |
 |--------|-----|----------------|
 | `apps/web` | Next.js (UI) | **Vercel** |
-| `apps/api` | Hono + Prisma + Postgres | **Render** (u otro Node con proceso largo) |
+| `apps/api` | Hono + Prisma + Postgres | **Render** (proceso Node largo) o **Netlify Functions** (HTTP serverless) |
 | `packages/shared` | Tipos y protocolo WS (co-op) | No se despliega solo |
+
+La API en **Netlify** solo sirve rutas **HTTP** (`/api/*`). El servidor WebSocket de co-op (`realtime:dev`) sigue siendo otro proceso/host (p. ej. Render o un VPS).
 
 ## 1. API en Render
 
@@ -20,6 +22,22 @@ El repo es un **monorepo npm**:
    - Co-op push: **`COOP_REALTIME_NOTIFY_URL`**, **`COOP_REALTIME_SECRET`** si usás el proceso `realtime:dev` aparte.
 
 Tras el deploy, probá `GET https://<tu-servicio>.onrender.com/api/health`.
+
+## 1b. API en Netlify
+
+Configuración en `apps/api/netlify.toml` + `apps/api/netlify/functions/gac-api.mts` (Hono con `hono/netlify` y `path: /api/*`).
+
+1. Nuevo sitio en Netlify desde el mismo repo.
+2. **Base directory:** `apps/api`.
+3. **Build command:** dejá el del `netlify.toml` (`npm run db:deploy` = `prisma migrate deploy`). Requiere **`DATABASE_URL`** también en tiempo de build (migraciones).
+4. **Install command:** `cd ../.. && npm ci` (instala el monorepo desde la raíz).
+5. **Publish directory:** `netlify/public` (sitio mínimo; la API vive en Functions).
+6. Variables (UI de Netlify, scope Build + Functions):
+   - **`DATABASE_URL`**
+   - **`CORS_ORIGIN`** — dominio del front (p. ej. Vercel), recomendado en producción.
+   - Opcional: **`COOP_REALTIME_NOTIFY_URL`**, **`COOP_REALTIME_SECRET`**, **`DATABASE_SSL_REJECT_UNAUTHORIZED`**
+
+Producción: `GET https://<tu-sitio>.netlify.app/api/health`. En Vercel, **`API_PROXY_TARGET`** = `https://<tu-sitio>.netlify.app` (sin `/api`).
 
 ## 2. Front en Vercel
 

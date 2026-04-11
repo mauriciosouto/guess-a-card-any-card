@@ -1,0 +1,20 @@
+# Deploy with Base directory = `apps/api` (Site settings → Build & deploy → Base directory).
+# Install command (same UI section): cd ../.. && npm ci
+# Build runs after install from `apps/api`; `postinstall` on @gac/api already runs `prisma generate`.
+#
+# Env vars (Functions + build): DATABASE_URL, CORS_ORIGIN, COOP_REALTIME_* as needed.
+
+[build]
+  publish = "netlify/public"
+  command = "npm run db:deploy"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Prisma + pg adapter: keep native deps out of the bundle; copy generated client into the artifact.
+[functions.gac-api]
+  external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg"]
+  included_files = ["src/generated/prisma/**"]
