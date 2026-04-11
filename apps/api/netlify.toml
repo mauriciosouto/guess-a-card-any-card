@@ -5,7 +5,8 @@
 # Env vars (Functions + build): DATABASE_URL, CORS_ORIGIN, COOP_REALTIME_* as needed.
 
 [build]
-  publish = "netlify/public"
+  # Paths in netlify.toml are repo-root-relative (even when Base directory = apps/api).
+  publish = "apps/api/netlify/public"
   command = "npm run db:deploy"
 
 [build.environment]

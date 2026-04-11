@@ -31,7 +31,7 @@ Configuración en `apps/api/netlify.toml` + `apps/api/netlify/functions/gac-api.
 2. **Base directory:** `apps/api`.
 3. **Build command:** dejá el del `netlify.toml` (`npm run db:deploy` = `prisma migrate deploy`). Requiere **`DATABASE_URL`** también en tiempo de build (migraciones).
 4. **Install command:** `cd ../.. && npm ci` (instala el monorepo desde la raíz).
-5. **Publish directory:** `netlify/public` (sitio mínimo; la API vive en Functions).
+5. **Publish directory:** `apps/api/netlify/public` desde la raíz del repo (o vacío si solo usás `netlify.toml`: ahí ya está definido).
 6. Variables (UI de Netlify, scope Build + Functions):
    - **`DATABASE_URL`**
    - **`CORS_ORIGIN`** — dominio del front (p. ej. Vercel), recomendado en producción.
