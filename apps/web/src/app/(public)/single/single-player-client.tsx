@@ -123,6 +123,33 @@ export function SinglePlayerClient() {
     }
   }
 
+  async function onForfeit() {
+    if (!gameId || game?.status !== "IN_PROGRESS") return;
+    if (
+      !window.confirm(
+        "End this reading? The true card will be revealed and this run counts as lost.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setAsyncFeedback("Closing the veil…");
+    setError(null);
+    try {
+      const res = await singleFetch(`/games/${gameId}/forfeit`, { method: "POST" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "Could not end game");
+      }
+      await refreshGame(gameId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not end game");
+    } finally {
+      setAsyncFeedback(null);
+      setBusy(false);
+    }
+  }
+
   async function onSubmitGuess() {
     if (!gameId) return;
     setBusy(true);
@@ -304,6 +331,20 @@ export function SinglePlayerClient() {
               submitLabel="Seal guess"
               asyncFeedback={busy ? asyncFeedback : null}
             />
+            {inProgress ? (
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--gold)]/10 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-[var(--blood)]/40 text-[var(--parchment-dim)] hover:border-[var(--blood)]/55 hover:text-[var(--blood)]"
+                  disabled={busy}
+                  onClick={() => void onForfeit()}
+                >
+                  Yield reading
+                </Button>
+              </div>
+            ) : null}
           </Panel>
         </div>
         <GameHistoryPanel entries={historyEntries} />

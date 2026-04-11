@@ -6,6 +6,7 @@ import {
   getAvailableSets,
 } from "@/server/services/puzzle-service";
 import {
+  forfeitSinglePlayerGame,
   parsePlayerIdentityFromHeaders,
   SinglePlayerHttpError,
   startSinglePlayerGame,
@@ -90,6 +91,16 @@ export const singlePlayerRoutes = new Hono()
         guessText,
         timeTakenMs,
       });
+      return c.json(out);
+    } catch (e) {
+      return handleErr(c, e);
+    }
+  })
+  .post("/games/:gameId/forfeit", async (c) => {
+    try {
+      const identity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const gameId = c.req.param("gameId");
+      const out = await forfeitSinglePlayerGame({ gameId, identity });
       return c.json(out);
     } catch (e) {
       return handleErr(c, e);

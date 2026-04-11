@@ -268,6 +268,76 @@ function buildSingleGamePublic(game: {
   };
 }
 
+export async function forfeitSinglePlayerGame(params: {
+  gameId: string;
+  identity: PlayerIdentity;
+}): Promise<{ status: GameStatus }> {
+  const txResult = await prisma.$transaction(async (tx) => {
+    const game = await tx.game.findUnique({
+      where: { id: params.gameId },
+      include: { gamePlayers: true },
+    });
+
+    if (!game || game.mode !== "SINGLE") {
+      throw new SinglePlayerHttpError(404, "Game not found.");
+    }
+    if (game.status !== GameStatus.IN_PROGRESS) {
+      throw new SinglePlayerHttpError(409, "This reading already ended.");
+    }
+
+    const player = game.gamePlayers[0];
+    if (!player || !matchesGamePlayer(player, params.identity)) {
+      throw new SinglePlayerHttpError(403, "This thread is not yours.");
+    }
+
+    await tx.game.update({
+      where: { id: game.id },
+      data: {
+        status: GameStatus.LOST,
+        finishedAt: new Date(),
+      },
+    });
+    await tx.gamePlayer.update({
+      where: { id: player.id },
+      data: { didWin: false },
+    });
+
+    return { player, puzzleId: game.puzzleId };
+  });
+
+  const hk = hostKeyFromIdentity({
+    userId: txResult.player.userId,
+    guestId: txResult.player.guestId,
+  });
+  if (hk) {
+    await notifyPuzzleCompletedForHost(hk, txResult.puzzleId).catch(() => {});
+  }
+
+  if (txResult.player.userId) {
+    const guesses = await prisma.guess.findMany({
+      where: { gameId: params.gameId },
+      orderBy: { createdAt: "asc" },
+    });
+    const attempted = guesses.length;
+    const duration = guesses.reduce((s, g) => s + g.timeTakenMs, 0);
+
+    await recordRegisteredUserGameOutcome({
+      userId: txResult.player.userId,
+      won: false,
+    }).catch(() => {});
+
+    await mergeUserCardStatsAfterGame({
+      userId: txResult.player.userId,
+      puzzleId: txResult.puzzleId,
+      won: false,
+      attempts: attempted,
+      durationMs: duration,
+    }).catch(() => {});
+  }
+
+  return { status: GameStatus.LOST };
+}
+
 export async function submitSinglePlayerGuess(params: {
   gameId: string;
   identity: PlayerIdentity;
