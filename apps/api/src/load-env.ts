@@ -2,8 +2,9 @@ import { config } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const apiRoot = path.resolve(__dirname, "..");
+/** Avoid naming this `__dirname` — bundlers (e.g. Netlify Functions) may merge scopes with Prisma/runtime. */
+const apiPackageDir = path.dirname(fileURLToPath(import.meta.url));
+const apiRoot = path.resolve(apiPackageDir, "..");
 const repoRoot = path.resolve(apiRoot, "../..");
 
 /** Prefer apps/api/.env; fill missing vars from repo root .env (monorepo DX). */
