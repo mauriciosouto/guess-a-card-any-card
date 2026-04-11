@@ -28,6 +28,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   const [guestId] = useState(() => getOrCreateGuestId());
   const [snap, setSnap] = useState<CoopRoomSnapshot | null>(null);
   const [sets, setSets] = useState<string[]>([]);
+  const [setsLoading, setSetsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joinName, setJoinName] = useState("");
   const [needsJoin, setNeedsJoin] = useState(false);
@@ -39,10 +40,17 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   const stepStartedAt = useRef<number>(Date.now());
 
   const loadSets = useCallback(async () => {
-    const res = await coopFetch("/sets");
-    if (res.ok) {
-      const j = (await res.json()) as { sets: string[] };
-      setSets(j.sets ?? []);
+    setSetsLoading(true);
+    try {
+      const res = await coopFetch("/sets");
+      if (res.ok) {
+        const j = (await res.json()) as { sets: string[] };
+        setSets(j.sets ?? []);
+      } else {
+        setSets([]);
+      }
+    } finally {
+      setSetsLoading(false);
     }
   }, []);
 
@@ -465,7 +473,14 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
               FAB sets (optional)
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {sets.length === 0 ? (
+              {setsLoading ? (
+                <span
+                  className="text-sm text-[var(--gold-dim)] animate-pulse"
+                  aria-busy="true"
+                >
+                  Gathering set sigils from the archive…
+                </span>
+              ) : sets.length === 0 ? (
                 <span className="text-sm text-[var(--mist)]">
                   No FAB set codes on published puzzles yet — you can still start from the full FAB pool.
                 </span>
@@ -496,7 +511,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button
               onClick={() => void onStart()}
-              disabled={busy || !snap.requesterIsHost || !canRaiseVeil}
+              disabled={busy || !snap.requesterIsHost || !canRaiseVeil || setsLoading}
             >
               Open the veil
             </Button>

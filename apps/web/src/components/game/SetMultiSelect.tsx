@@ -9,6 +9,9 @@ export type SetMultiSelectProps = {
   value: Set<string>;
   onChange: (next: Set<string>) => void;
   disabled?: boolean;
+  /** While the `…/sets` request is in flight (cold start, network). */
+  loading?: boolean;
+  loadingLabel?: string;
   /** Empty state when no sets from API */
   emptyLabel?: string;
   className?: string;
@@ -22,6 +25,8 @@ export function SetMultiSelect({
   value,
   onChange,
   disabled,
+  loading = false,
+  loadingLabel = "Gathering set sigils from the archive…",
   emptyLabel = "No FAB set codes on published puzzles yet.",
   className,
 }: SetMultiSelectProps) {
@@ -52,24 +57,40 @@ export function SetMultiSelect({
         ? [...value][0]
         : `${value.size} sets selected`;
 
+  const labelText = loading
+    ? loadingLabel
+    : options.length === 0
+      ? emptyLabel
+      : summary;
+
+  const canOpen = !loading && !disabled && options.length > 0;
+
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <Button
         type="button"
         variant="outline"
-        disabled={disabled || options.length === 0}
+        disabled={disabled || loading || options.length === 0}
         aria-expanded={open}
+        aria-busy={loading}
         aria-haspopup="listbox"
         aria-controls={listId}
         className="h-auto min-h-12 w-full justify-between border-[var(--wine-deep)] px-4 py-3 text-left font-normal text-[var(--parchment)]"
-        onClick={() => options.length > 0 && setOpen((o) => !o)}
+        onClick={() => canOpen && setOpen((o) => !o)}
       >
-        <span className="line-clamp-2 text-sm">{options.length === 0 ? emptyLabel : summary}</span>
+        <span
+          className={cn(
+            "line-clamp-2 text-sm",
+            loading && "animate-pulse text-[var(--gold-dim)]",
+          )}
+        >
+          {labelText}
+        </span>
         <span className="ml-2 shrink-0 text-[var(--gold-dim)]" aria-hidden>
-          {open ? "▲" : "▼"}
+          {loading ? "…" : open ? "\u25B2" : "\u25BC"}
         </span>
       </Button>
-      {open && options.length > 0 ? (
+      {open && canOpen ? (
         <div
           id={listId}
           role="listbox"

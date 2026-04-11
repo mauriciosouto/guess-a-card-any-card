@@ -42,6 +42,7 @@ type GameSnap = {
 export function SinglePlayerClient() {
   const [phase, setPhase] = useState<"setup" | "play" | "done">("setup");
   const [sets, setSets] = useState<string[]>([]);
+  const [setsLoading, setSetsLoading] = useState(true);
   const [selectedFabSets, setSelectedFabSets] = useState<Set<string>>(new Set());
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<GameSnap | null>(null);
@@ -52,10 +53,17 @@ export function SinglePlayerClient() {
   const stepStartedAt = useRef(Date.now());
 
   const loadSets = useCallback(async () => {
-    const res = await singleFetch("/sets");
-    if (res.ok) {
-      const j = (await res.json()) as { sets: string[] };
-      setSets(j.sets ?? []);
+    setSetsLoading(true);
+    try {
+      const res = await singleFetch("/sets");
+      if (res.ok) {
+        const j = (await res.json()) as { sets: string[] };
+        setSets(j.sets ?? []);
+      } else {
+        setSets([]);
+      }
+    } finally {
+      setSetsLoading(false);
     }
   }, []);
 
@@ -183,10 +191,11 @@ export function SinglePlayerClient() {
               value={selectedFabSets}
               onChange={setSelectedFabSets}
               disabled={busy}
+              loading={setsLoading}
             />
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button onClick={() => void onStart()} disabled={busy}>
+            <Button onClick={() => void onStart()} disabled={busy || setsLoading}>
               Start
             </Button>
             <Button variant="outline" asChild>
