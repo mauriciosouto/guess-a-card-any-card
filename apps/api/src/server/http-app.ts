@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { competitiveRoutes } from "@/server/competitive-routes";
 import { coopRoutes } from "@/server/coop-routes";
 import { singlePlayerRoutes } from "@/server/single-player-routes";
 
@@ -23,6 +24,7 @@ app.get("/health", (c) =>
 );
 
 app.route("/coop", coopRoutes);
+app.route("/competitive", competitiveRoutes);
 app.route("/single", singlePlayerRoutes);
 
 export { app };

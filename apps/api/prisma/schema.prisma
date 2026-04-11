@@ -42,6 +42,13 @@ enum GameStatus {
   CANCELLED
 }
 
+/// Competitive mode — per-player race state (null for single/coop rows).
+enum CompetitivePlayerState {
+  RACING
+  SOLVED
+  ELIMINATED
+}
+
 /// Registered player; id typically matches auth.users.id once Supabase Auth is connected.
 model User {
   id          String   @id @default(uuid()) @db.Uuid
@@ -185,6 +192,8 @@ model Game {
   winningAttemptCount      Int?       @map("winning_attempt_count")
   winningTotalTimeMs       Int?       @map("winning_total_time_ms")
   createdAt                DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// When the current competitive step round ends (server clock). Null outside COMPETITIVE in progress.
+  competitiveStepDeadlineAt DateTime? @map("competitive_step_deadline_at") @db.Timestamptz(6)
 
   room                  Room?        @relation("RoomGames", fields: [roomId], references: [id], onDelete: SetNull)
   roomCurrent           Room?        @relation("RoomCurrentGame")
@@ -215,6 +224,7 @@ model GamePlayer {
   solvedTotalTimeMs Int?     @map("solved_total_time_ms")
   didWin            Boolean  @default(false) @map("did_win")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  competitiveState CompetitivePlayerState? @map("competitive_state")
 
   game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
   roomPlayer RoomPlayer? @relation(fields: [roomPlayerId], references: [id], onDelete: SetNull)
@@ -247,6 +257,7 @@ model Guess {
   @@index([gameId, gamePlayerId, stepNumber])
   /// Fast path: “already a guess for this step?” (e.g. COOP one guess / step).
   @@index([gameId, stepNumber])
+  @@unique([gameId, gamePlayerId, stepNumber])
   @@map("guesses")
 }
 
