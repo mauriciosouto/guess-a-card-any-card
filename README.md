@@ -8,6 +8,8 @@ Next.js game client for **Flesh and Blood**-style veiled-card guessing (single-p
 - **`apps/api`** — Hono + Prisma + REST bajo `/api/*` (típico: **Render** u otro Node).
 - **`packages/shared`** — Tipos compartidos (p. ej. snapshot co-op, protocolo WebSocket).
 
+Qué se genera localmente y qué no va a git: **[docs/generated-files.md](./docs/generated-files.md)**.
+
 ## Setup local
 
 ```bash

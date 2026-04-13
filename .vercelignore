@@ -1,0 +1,29 @@
+# Shrinks the deployment upload. Install still runs `npm ci` on Vercel with a clean tree.
+# Patterns follow .gitignore-style paths relative to the repository root.
+
+# Local installs (never upload)
+node_modules/
+**/node_modules/
+
+# Local / CI build caches
+**/.next/
+**/out/
+**/dist/
+**/.turbo/
+**/coverage/
+**/*.tsbuildinfo
+.eslintcache
+
+# Regenerated on `@gac/api` postinstall (`prisma generate`)
+apps/api/src/generated/prisma/
+
+# Secrets (Vercel env vars replace these)
+.env
+.env.*
+!.env.example
+
+# Not needed to build the Next.js app
+.git/
+**/*.test.ts
+**/*.test.tsx
+**/vitest.config.ts

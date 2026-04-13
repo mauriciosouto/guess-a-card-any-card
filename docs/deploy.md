@@ -8,6 +8,8 @@ El repo es un **monorepo npm**:
 | `apps/api` | Hono + Prisma + Postgres | **Render** (proceso Node largo) o **Netlify Functions** (HTTP serverless) |
 | `packages/shared` | Tipos y protocolo WS (co-op) | No se despliega solo |
 
+Artefactos generados (qué ignorar en git / Vercel): **[generated-files.md](./generated-files.md)**.
+
 La API en **Netlify** solo sirve rutas **HTTP** (`/api/*`). El servidor WebSocket de co-op (`realtime:dev`) sigue siendo otro proceso/host (p. ej. Render o un VPS).
 
 ## 1. API en Render
