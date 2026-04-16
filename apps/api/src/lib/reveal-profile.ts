@@ -6,20 +6,27 @@ import {
   type CardZoneValidityKind,
 } from "@gac/shared/reveal";
 
-export type PuzzleRevealProfile = {
+export type RevealProfileDefaults = {
   cardKind: CardZoneValidityKind;
   templateKey: CardTemplateKey;
 };
 
-/** Until puzzles store FAB classification, all games share this profile (must match client). */
-export function defaultPuzzleRevealProfile(): PuzzleRevealProfile {
+/** Default FAB reveal classification when deriving a profile from partial catalog data (must match client). */
+export function defaultRevealProfileDefaults(): RevealProfileDefaults {
   return {
     cardKind: DEFAULT_REVEAL_CARD.kind,
     templateKey: DEFAULT_REVEAL_TEMPLATE_KEY,
   };
 }
 
-export function puzzleRevealTotalSteps(puzzle: { seed: string }): number {
-  const { templateKey } = defaultPuzzleRevealProfile();
-  return getRevealPlanTotalSteps(DEFAULT_REVEAL_CARD, templateKey, puzzle.seed);
+export function gameRevealTotalSteps(args: {
+  seed: string;
+  revealCardKind: CardZoneValidityKind;
+  cardTemplateKey: CardTemplateKey;
+}): number {
+  return getRevealPlanTotalSteps(
+    { kind: args.revealCardKind },
+    args.cardTemplateKey,
+    args.seed,
+  );
 }

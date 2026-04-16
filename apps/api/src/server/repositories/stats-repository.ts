@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export type UserCardStatMergeArgs = {
   userId: string;
-  puzzleId: string;
+  cardId: string;
   won: boolean;
   attempts: number;
   durationMs: number;
@@ -16,12 +16,12 @@ export type UserCardStatMergeArgs = {
 export async function mergeUserCardStatsAfterGame(
   args: UserCardStatMergeArgs,
 ): Promise<void> {
-  const { userId, puzzleId, won, attempts, durationMs } = args;
+  const { userId, cardId, won, attempts, durationMs } = args;
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.userCardStat.findUnique({
       where: {
-        userId_puzzleId: { userId, puzzleId },
+        userId_cardId: { userId, cardId },
       },
     });
 
@@ -29,7 +29,7 @@ export async function mergeUserCardStatsAfterGame(
       await tx.userCardStat.create({
         data: {
           userId,
-          puzzleId,
+          cardId,
           timesPlayed: 1,
           timesWon: won ? 1 : 0,
           averageAttempts:
@@ -61,7 +61,7 @@ export async function mergeUserCardStatsAfterGame(
     }
 
     await tx.userCardStat.update({
-      where: { userId_puzzleId: { userId, puzzleId } },
+      where: { userId_cardId: { userId, cardId } },
       data: {
         timesPlayed,
         timesWon,

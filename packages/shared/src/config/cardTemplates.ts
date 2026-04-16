@@ -48,7 +48,7 @@ export const actionLikeTemplate: CardTemplate = {
     {
       id: "pitch",
       rect: {
-        x: 0.03,
+        x: 0.05,
         y: 0.04,
         width: 0.14,
         height: 0.08,
@@ -57,7 +57,7 @@ export const actionLikeTemplate: CardTemplate = {
     {
       id: "name",
       rect: {
-        x: 0.17,
+        x: 0.19,
         y: 0.04,
         width: 0.63,
         height: 0.08,
@@ -67,7 +67,7 @@ export const actionLikeTemplate: CardTemplate = {
     {
       id: "cost",
       rect: {
-        x: 0.83,
+        x: 0.81,
         y: 0.04,
         width: 0.14,
         height: 0.08,
@@ -90,7 +90,7 @@ export const actionLikeTemplate: CardTemplate = {
         x: 0.05,
         y: 0.62,
         width: 0.9,
-        height: 0.2,
+        height: 0.23,
       },
       slices: 4,
     },

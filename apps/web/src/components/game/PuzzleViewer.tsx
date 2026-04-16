@@ -11,15 +11,16 @@ export type PuzzleViewerProps = {
   /** Change when the step changes to replay slide animation */
   stepKey?: string | number;
   className?: string;
-  puzzleSeed?: string | null;
-  puzzleStep?: number;
+  revealSeed?: string | null;
+  /** 1-based reveal step index (clamped to `revealTotalSteps`). */
+  revealStep?: number;
   /** From server: `revealPlan.length` — caps overlay step. */
   revealTotalSteps?: number;
   revealCardKind?: CardZoneValidityKind;
   cardTemplateKey?: CardTemplateKey;
   /**
    * After win/loss: show full card (drops name/footer + inactive stat-slot blackouts).
-   * Still uses `puzzleStep` / plan for zone masks; use final step + this for a fully unmasked card.
+   * Still uses `revealStep` / plan for zone masks; use final step + this for a fully unmasked card.
    */
   terminalFullReveal?: boolean;
 };
@@ -32,20 +33,20 @@ export function PuzzleViewer({
   alt = "Mystery card",
   stepKey = 0,
   className,
-  puzzleSeed,
-  puzzleStep = 1,
+  revealSeed,
+  revealStep = 1,
   revealTotalSteps,
   revealCardKind,
   cardTemplateKey,
   terminalFullReveal = false,
 }: PuzzleViewerProps) {
   const useReveal =
-    Boolean(imageUrl && puzzleSeed && revealTotalSteps != null && revealTotalSteps >= 1 && revealCardKind);
+    Boolean(imageUrl && revealSeed && revealTotalSteps != null && revealTotalSteps >= 1 && revealCardKind);
 
   const safeOverlayStep =
     useReveal && revealTotalSteps != null
-      ? Math.min(Math.max(1, puzzleStep), revealTotalSteps)
-      : Math.max(1, puzzleStep);
+      ? Math.min(Math.max(1, revealStep), revealTotalSteps)
+      : Math.max(1, revealStep);
 
   return (
     <div
@@ -57,7 +58,10 @@ export function PuzzleViewer({
       )}
     >
       <div
-        className="relative flex w-full justify-center overflow-hidden rounded-xl border-2 border-[var(--gold-dim)]/50 bg-[var(--void)] shadow-[inset_0_0_60px_rgba(0,0,0,0.65),0_16px_48px_rgba(0,0,0,0.5)]"
+        className={cn(
+          "relative flex w-full items-center justify-center rounded-xl border-2 border-[var(--gold-dim)]/50 bg-[var(--void)] shadow-[inset_0_0_60px_rgba(0,0,0,0.65),0_16px_48px_rgba(0,0,0,0.5)]",
+          terminalFullReveal ? "overflow-visible" : "overflow-hidden",
+        )}
         style={{
           backgroundImage: `
             linear-gradient(180deg, rgba(26, 15, 32, 0.4) 0%, rgba(8, 4, 12, 0.85) 100%),
@@ -71,25 +75,35 @@ export function PuzzleViewer({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--void)]/50 via-transparent to-[var(--gold)]/05" />
         <div
           className={cn(
-            "relative z-[1] flex aspect-[3/4] w-full max-w-[min(100%,calc(0.75*min(72vh,520px)))] max-h-[min(72vh,520px)] min-w-0 flex-col items-center justify-center p-3 sm:p-4",
+            "relative z-[1] flex aspect-[3/4] w-full max-w-full min-w-0 flex-col items-center justify-center self-center p-3 sm:p-4",
+            terminalFullReveal
+              ? "max-h-[min(90vh,720px)] max-w-[min(100%,calc(0.75*min(90vh,720px)))]"
+              : "max-h-[min(72vh,520px)] max-w-[min(100%,calc(0.75*min(72vh,520px)))]",
           )}
         >
           {imageUrl ? (
             <div
-              key={`${stepKey}-${imageUrl}-${puzzleSeed ?? ""}-${safeOverlayStep}-${revealCardKind ?? ""}-${terminalFullReveal ? "full" : "play"}`}
-              className="relative z-[1] flex h-full max-h-[min(72vh,520px)] w-full min-w-0 items-center justify-center py-0.5"
+              key={`${stepKey}-${imageUrl}-${revealSeed ?? ""}-${safeOverlayStep}-${revealCardKind ?? ""}-${terminalFullReveal ? "full" : "play"}`}
+              className={cn(
+                "relative z-[1] flex h-full w-full min-w-0 items-center justify-center py-0.5",
+                terminalFullReveal ? "max-h-[min(90vh,720px)]" : "max-h-[min(72vh,520px)]",
+              )}
             >
               {useReveal && revealCardKind ? (
                 <div className="animate-slide-step flex w-full justify-center">
                   <StepCardPreview
                     imageUrl={imageUrl}
-                    seed={puzzleSeed!}
+                    seed={revealSeed!}
                     step={safeOverlayStep}
                     revealCardKind={revealCardKind}
                     cardTemplateKey={cardTemplateKey}
                     terminalFullReveal={terminalFullReveal}
                     alt={alt}
-                    className="w-[min(100%,280px)] max-w-full shrink-0 sm:w-[min(100%,320px)]"
+                    className={
+                      terminalFullReveal
+                        ? "w-full max-w-full"
+                        : "w-[min(100%,280px)] max-w-full shrink-0 sm:w-[min(100%,320px)]"
+                    }
                   />
                 </div>
               ) : (

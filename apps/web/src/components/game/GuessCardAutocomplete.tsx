@@ -33,7 +33,7 @@ export type GuessCardAutocompleteProps = {
 };
 
 /**
- * Guess field with FaB catalog names via `/api/single/cards/search` (@flesh-and-blood/cards).
+ * Guess field with playable FaB card names via `/api/single/cards/search` (runtime catalog, same pool as deals).
  * Suggestions only after {@link MIN_CHARS} characters; debounced fetch.
  */
 export function GuessCardAutocomplete({

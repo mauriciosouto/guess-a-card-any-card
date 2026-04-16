@@ -87,7 +87,7 @@ export function GameHistoryPanel({
   if (alwaysShowList) {
     return (
       <Panel variant="textured" className={cn("border-[var(--gold)]/20 p-4", className)}>
-        <h3 className="font-display mb-4 text-center text-xs font-semibold uppercase tracking-[0.28em] text-[var(--gold-bright)]">
+        <h3 className="font-display mb-4 text-center text-xs font-semibold uppercase tracking-[0.28em] text-[var(--gold-bright)] lg:text-left">
           Sigil log
         </h3>
         <HistoryList entries={entries} />

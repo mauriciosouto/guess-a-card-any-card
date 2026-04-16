@@ -1,15 +1,13 @@
 import { GameStatus, RoomState } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { guessesAreEqual, normalizeGuessText } from "@/lib/game/guess-normalize";
-import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
+import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
+import { newRevealSeed, resolveGameCard, type GameForCardResolution } from "@/lib/game-card-resolution";
 import { nextActiveRoomPlayerId, shuffleRoomPlayerIds } from "@/server/engines/coop-engine";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
-import type { HostKey } from "@/server/repositories/puzzle-repository";
 import { notifyCoopRoom } from "@/server/realtime/coop-notify";
-import {
-  notifyPuzzleCompletedForHost,
-  resolvePuzzleForNewGame,
-} from "@/server/services/puzzle-service";
+import { getRandomCard } from "@/server/services/card-catalog-service";
 
 export class CoopHttpError extends Error {
   constructor(
@@ -19,12 +17,6 @@ export class CoopHttpError extends Error {
     super(message);
     this.name = "CoopHttpError";
   }
-}
-
-function asHostKey(room: { hostUserId: string | null; hostGuestId: string | null }): HostKey | null {
-  if (room.hostUserId) return { hostUserId: room.hostUserId };
-  if (room.hostGuestId) return { hostGuestId: room.hostGuestId };
-  return null;
 }
 
 export type CoopGuessLine = {
@@ -42,8 +34,9 @@ export type CoopGamePublic = {
   status: GameStatus;
   currentStep: number | null;
   totalSteps: number;
+  cardId: string;
   cardImageUrl: string;
-  puzzleSeed: string;
+  revealSeed: string;
   currentImageUrl: string | null;
   revealCardKind: CardZoneValidityKind;
   cardTemplateKey: CardTemplateKey;
@@ -210,20 +203,17 @@ export async function startCoopGame(params: {
       "Bind at least two seers before raising the veil — share the circle link and wait for another soul.",
     );
   }
-  const hostKey = asHostKey(room);
-  const puzzle = await resolvePuzzleForNewGame({
-    selectedFabSets: room.selectedSets,
-    host: hostKey,
-    recentHistoryLimit: 50,
-  });
-  if (!puzzle) {
+  const catalogCard = getRandomCard(room.selectedSets);
+  if (!catalogCard) {
     throw new CoopHttpError(
       400,
       room.selectedSets.length > 0
-        ? "No puzzle availed itself for those FAB sets — try another selection or clear filters."
-        : "No playable FAB puzzle availed itself.",
+        ? "No card in the catalog for those sets — try another selection or clear filters."
+        : "No playable card availed itself from the catalog.",
     );
   }
+  const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
+  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
 
   const shuffled = shuffleRoomPlayerIds(room.roomPlayers.map((p) => p.id));
   const firstActiveId = shuffled[0]!;
@@ -240,7 +230,13 @@ export async function startCoopGame(params: {
       data: {
         roomId: room.id,
         mode: "COOP",
-        puzzleId: puzzle.id,
+        cardId: catalogCard.id,
+        cardName: catalogCard.name,
+        cardSet: catalogCard.setKey,
+        cardImageUrl,
+        revealSeed: newRevealSeed(),
+        revealCardKind,
+        cardTemplateKey,
         status: GameStatus.IN_PROGRESS,
         currentStep: 1,
         activeTurnRoomPlayerId: firstActiveId,
@@ -297,7 +293,6 @@ export async function getCoopRoomPublic(params: {
       },
       currentGame: {
         include: {
-          puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
           guesses: { orderBy: { createdAt: "asc" }, include: { gamePlayer: true } },
           gamePlayers: true,
         },
@@ -319,9 +314,9 @@ export async function getCoopRoomPublic(params: {
   const cg = room.currentGame;
 
   if (cg) {
-    const totalSteps = puzzleRevealTotalSteps(cg.puzzle);
-    const profile = defaultPuzzleRevealProfile();
-    const heroArt = cg.puzzle.imageUrl;
+    const resolved = resolveGameCard(cg as GameForCardResolution);
+    const totalSteps = resolved.totalSteps;
+    const heroArt = resolved.cardImageUrl;
     const terminal =
       cg.status === GameStatus.WON ||
       cg.status === GameStatus.LOST ||
@@ -355,14 +350,15 @@ export async function getCoopRoomPublic(params: {
       status: cg.status,
       currentStep: cg.currentStep,
       totalSteps,
+      cardId: cg.cardId,
       cardImageUrl: heroArt,
-      puzzleSeed: cg.puzzle.seed,
+      revealSeed: resolved.seed,
       currentImageUrl: heroArt,
-      revealCardKind: profile.cardKind,
-      cardTemplateKey: profile.templateKey,
-      cardName: terminal ? cg.puzzle.cardName : null,
-      dataSource: terminal ? cg.puzzle.dataSource : null,
-      fabSet: terminal ? cg.puzzle.fabSet : null,
+      revealCardKind: resolved.revealCardKind,
+      cardTemplateKey: resolved.cardTemplateKey,
+      cardName: terminal ? resolved.cardName : null,
+      dataSource: terminal ? resolved.dataSource : null,
+      fabSet: terminal ? resolved.fabSet : null,
       activeTurnRoomPlayerId: cg.activeTurnRoomPlayerId,
       activePlayerDisplayName: activeGp?.displayName ?? activeRp?.displayName ?? null,
       attemptCount: cg.guesses.length,
@@ -396,7 +392,6 @@ type GuessTxResult = {
   correct: boolean;
   status: GameStatus;
   roomId: string;
-  puzzleId: string;
 };
 
 export async function submitCoopGuess(params: {
@@ -412,7 +407,6 @@ export async function submitCoopGuess(params: {
     const game = await tx.game.findUnique({
       where: { id: params.gameId },
       include: {
-        puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
         room: { include: { roomPlayers: { where: { leftAt: null } } } },
         guesses: true,
         gamePlayers: true,
@@ -458,8 +452,9 @@ export async function submitCoopGuess(params: {
     });
     if (prior) throw new CoopHttpError(409, "A name was already spoken for this step.");
 
-    const totalSteps = puzzleRevealTotalSteps(game.puzzle);
-    const cardNorm = normalizeGuessText(game.puzzle.cardName);
+    const resolved = resolveGameCard(game as GameForCardResolution);
+    const totalSteps = resolved.totalSteps;
+    const cardNorm = normalizeGuessText(resolved.cardName);
     const correct = guessesAreEqual(normalized, cardNorm);
 
     await tx.guess.create({
@@ -504,7 +499,6 @@ export async function submitCoopGuess(params: {
         correct: true,
         status: GameStatus.WON,
         roomId: game.roomId!,
-        puzzleId: game.puzzleId,
       };
     }
 
@@ -524,7 +518,6 @@ export async function submitCoopGuess(params: {
         correct: false,
         status: GameStatus.LOST,
         roomId: game.roomId!,
-        puzzleId: game.puzzleId,
       };
     }
 
@@ -545,17 +538,8 @@ export async function submitCoopGuess(params: {
       correct: false,
       status: GameStatus.IN_PROGRESS,
       roomId: game.roomId!,
-      puzzleId: game.puzzleId,
     };
   });
-
-  if (txResult.status === GameStatus.WON || txResult.status === GameStatus.LOST) {
-    const roomRow = await prisma.room.findUnique({ where: { id: txResult.roomId } });
-    const hk = roomRow && asHostKey(roomRow);
-    if (hk) {
-      await notifyPuzzleCompletedForHost(hk, txResult.puzzleId).catch(() => {});
-    }
-  }
 
   notifyCoopRoom(txResult.roomId);
   return { correct: txResult.correct, status: txResult.status };

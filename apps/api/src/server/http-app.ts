@@ -3,6 +3,9 @@ import { cors } from "hono/cors";
 import { competitiveRoutes } from "@/server/competitive-routes";
 import { coopRoutes } from "@/server/coop-routes";
 import { singlePlayerRoutes } from "@/server/single-player-routes";
+import { initCardCatalog } from "@/server/services/card-catalog-service";
+
+initCardCatalog();
 
 const allowedOrigins =
   process.env.CORS_ORIGIN?.split(",")

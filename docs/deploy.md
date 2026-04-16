@@ -18,7 +18,7 @@ La API en **Netlify** solo sirve rutas **HTTP** (`/api/*`). El servidor WebSocke
 2. **Build command:** `npm ci && npm run db:deploy --workspace=@gac/api`
 3. **Start command:** `npm run start:api` (equivale a `tsx src/index.ts` en `apps/api`).
 4. Variables (mínimo):
-   - **`DATABASE_URL`** — Postgres (misma DB que el admin / migraciones en `apps/api/prisma`).
+   - **`DATABASE_URL`** — Postgres del juego (migraciones en `apps/api/prisma`).
    - Opcional: **`PORT`** — Render inyecta `PORT`; la app usa `process.env.PORT ?? 8787`.
    - **`CORS_ORIGIN`** — Origen del front en producción, p. ej. `https://tu-proyecto.vercel.app` (sin barra final). Si no está definido, CORS usa `*` (útil solo en desarrollo).
    - Co-op push: **`COOP_REALTIME_NOTIFY_URL`**, **`COOP_REALTIME_SECRET`** si usás el proceso `realtime:dev` aparte.
@@ -75,14 +75,16 @@ npm run dev --workspace=@gac/web
 
 Opcional — WebSocket co-op: `npm run realtime:dev` (workspace `@gac/api`).
 
-## 4. Base de datos
+## 4. Base de datos y catálogo
 
-- Migraciones viven en **`apps/api/prisma`**. Ejecutá `db:deploy` en el build de Render (o manualmente antes).
+- Migraciones en **`apps/api/prisma`**. Ejecutá `db:deploy` en el build de Render (o manualmente antes).
 - **`DATABASE_SSL_REJECT_UNAUTHORIZED=false`** en la API si Supabase u otro pooler da errores TLS (`P1010`).
+- El **catálogo de cartas** (`@flesh-and-blood/cards`) se carga **en memoria al arrancar** la API. Un **redeploy / restart** refresca sets y pool jugable. No hace falta publicar puzzles ni sincronizar un admin.
+- Si el catálogo **no puede cargarse al boot**, la API no debería dar por buenos los flujos de juego (health/checklist operativo).
 
 ## 5. Checklist
 
 - [ ] `DATABASE_URL` en Render (build + runtime).
 - [ ] `API_PROXY_TARGET` en Vercel apuntando a la API pública.
 - [ ] `CORS_ORIGIN` en la API con el dominio del front (recomendado en producción).
-- [ ] Puzzles publicados en admin para probar single/coop.
+- [ ] Verificar que la API arranca y responde (p. ej. `/api/health`); el catálogo se construye en ese arranque.

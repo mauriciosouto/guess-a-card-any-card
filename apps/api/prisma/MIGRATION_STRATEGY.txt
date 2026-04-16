@@ -1,44 +1,42 @@
 Guess a Card, Any Card — database migration strategy
 
-1) Shared Supabase DB with admin
-   - The first migration can create "Puzzle" / "PuzzleStep" if they are missing (e.g. Prisma shadow DB, or a fresh project).
-   - If the admin already created them, `CREATE IF NOT EXISTS` skips; `ALTER … ADD COLUMN IF NOT EXISTS` still adds game-only fields.
-   - If you previously applied an old game migration that created "puzzles" / "puzzle_steps", drop those
-     tables manually if they are unused, or keep them and do not reference them from this schema.
+1) Game-owned PostgreSQL
+   - This repo owns `apps/api/prisma/schema.prisma` and all migrations under
+     `apps/api/prisma/migrations/`.
+   - The admin app is retired for now and does not share this database.
+   - Legacy `Puzzle` / `PuzzleStep` (and related gameplay FKs) were removed in favor of
+     catalog snapshots on `games` and `user_card_stats.card_id`.
 
-2) Applying migrations on a SHARED database (Supabase + admin)
-   - `prisma migrate dev` compares migration history to the real DB and reports "drift" when tables
-     already exist (e.g. Puzzle from the admin). It may ask for reset — do NOT reset a shared DB.
-   - Use: `npm run db:migrate` → runs `prisma migrate deploy`, which only applies **pending** migrations
-     and does not trigger that drift gate.
-   - Local iteration with shadow DB / new migrations: `npm run db:migrate:dev` against a disposable Postgres.
+2) Applying migrations
+   - Production/staging: `npm run db:deploy` (Prisma `migrate deploy`) with `DATABASE_URL` set.
+   - Local iteration: `npm run db:migrate:dev` against a disposable Postgres when experimenting
+     with new migrations.
+   - Do not use `prisma migrate reset` on shared production data unless you intend to wipe it.
 
 3) First-time setup
-   - Copy .env.example to .env and set DATABASE_URL.
-   - Shared Supabase: `npm run db:migrate` (deploy). Optional: use direct connection URI if pooler errors.
+   - Copy `.env.example` to `.env` and set `DATABASE_URL`.
+   - Run `npm run db:deploy` from the repo (API workspace) to apply pending migrations.
 
-4) Shared ownership
-   - Do not run prisma migrate reset on a shared DB — it drops data other apps need.
-   - Prefer one repo as owner of schema changes to "Puzzle"/"PuzzleStep", or coordinate additive SQL.
+4) Historical note
+   - Early migrations may reference `Puzzle` / `PuzzleStep` for shadow DB replay; later migrations
+     drop those tables. Fresh databases replay the full chain and end on the catalog-only schema.
 
 5) Supabase Auth vs `users`
    - Align `users.id` with `auth.users.id` when OAuth lands.
 
-6) Seed script plan (Prompt 2)
-   - Command: npm run db:seed (prisma/seed.ts).
-   - Today: upserts Achievement rows from BLUEPRINT_PRO.md §23.2 (codes FIRST_BLOOD,
+6) Seed script
+   - Command: `npm run db:seed` (prisma/seed.ts).
+   - Today: upserts `Achievement` rows from BLUEPRINT_PRO.md §23.2 (codes FIRST_BLOOD,
      SHARP_EYE, CONSISTENT_SCHOLAR, SET_SPECIALIST, NEVER_GIVE_UP).
-   - Idempotent: safe to re-run; updates name/description if the catalog changes.
-   - Future: optional dev users / demo puzzles ONLY on disposable DBs — never seed fake
-     puzzles into a shared admin table without coordination.
+   - Idempotent: safe to re-run.
 
-7) Repository / service outline (Prompt 2)
-   - See prisma/DB_LAYER_OUTLINE.txt for file map (puzzle + stats + coop).
+7) Repository / service outline
+   - See `DB_LAYER_OUTLINE.txt` for file map (catalog + stats + multiplayer).
 
 8) Production
-   - prisma migrate deploy against production DATABASE_URL.
+   - `prisma migrate deploy` against production `DATABASE_URL` as part of deploy.
 
 9) Failed migration (P3018)
    - Mark the failed migration rolled back, fix SQL, redeploy:
-     npx prisma migrate resolve --rolled-back "20260402140000_game_tables_and_admin_puzzle_extensions"
-     npm run db:migrate
+     npx prisma migrate resolve --rolled-back "<migration_folder_name>"
+     npm run db:deploy

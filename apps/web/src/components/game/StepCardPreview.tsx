@@ -91,7 +91,10 @@ export function StepCardPreview({
         <img
           src={imageUrl}
           alt={alt}
-          className="absolute inset-0 z-0 h-full w-full object-cover object-top"
+          className={cn(
+            "absolute inset-0 z-0 h-full w-full",
+            terminalFullReveal ? "object-contain object-center" : "object-cover object-top",
+          )}
           loading="lazy"
           onError={(e) => {
             const t = e.currentTarget;

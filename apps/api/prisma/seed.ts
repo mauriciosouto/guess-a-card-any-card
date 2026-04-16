@@ -1,6 +1,6 @@
 /**
  * Prompt 2 — seed script plan (BLUEPRINT_PRO.md §28.2): idempotent catalog data.
- * Achievements only; puzzles remain owned by the admin app / shared DB.
+ * Achievements only.
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";

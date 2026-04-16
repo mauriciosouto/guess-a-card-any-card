@@ -1,23 +1,26 @@
 Prompt 2 — repository / service layer map (BLUEPRINT_PRO.md §28.2)
 ================================================================
 
-Puzzle access (read-only; admin authors Puzzle / PuzzleStep)
---------------------------------------------------------------
-Repositories:
-  src/server/repositories/puzzle-repository.ts
-    - listActiveSetNames()           — distinct Puzzle.dataSource for playable rows
-    - listRecentPuzzleIdsForHost() — de-dupe input for random pick
-    - pickRandomPuzzle()            — random row in sets, optional excludes
-    - recordHostPuzzlePlayed()     — append HostPuzzleHistory row
-
+Card catalog (runtime; @flesh-and-blood/cards)
+----------------------------------------------
 Services:
-  src/server/services/puzzle-service.ts
-    - getAvailableSets()
-    - resolvePuzzleForNewGame({ selectedSets, host?, recentHistoryLimit? })
-    - notifyPuzzleCompletedForHost(host, puzzleId)
+  src/server/services/card-catalog-service.ts
+    - Loads filtered in-memory catalog at API startup
+    - getAllSets() / set lists for lobby
+    - getRandomCard(selectedFabSets) for new games
+    - searchPlayableCatalogCardNames() for autocomplete (HTTP)
 
-Single-player (Prompt 3 — BLUEPRINT_PRO.md §28.3)
-------------------------------------------------
+Reveal / snapshot resolution
+-----------------------------
+  src/lib/game-card-resolution.ts
+    - newRevealSeed()
+    - resolveGameCard(game) — reads DB snapshot fields only (no joins)
+  src/lib/reveal-profile.ts — plan step counts from seed + kind + template
+  src/lib/fab-reveal-profile.ts — map official FAB Card → reveal profile
+  src/lib/card-art-url.ts — hero image URLs for catalog cards
+
+Single-player (BLUEPRINT_PRO.md §28.3)
+--------------------------------------
 Pure domain:
   src/lib/game/single-player-logic.ts
     - resolveSinglePlayerGuess()   — win / lose / advance step
@@ -35,29 +38,28 @@ Repositories:
   src/server/repositories/stats-repository.ts
     - ensureUserStatRow(userId)
     - applyGameOutcomeToUserStats(outcome)     — UserStat counters + bests
-    - mergeUserCardStatsAfterGame(args)        — UserCardStat per puzzle rolling averages
+    - mergeUserCardStatsAfterGame(args)        — UserCardStat per catalog cardId
 
 Services:
   src/server/services/stats-service.ts
     - recordRegisteredUserGameOutcome() — thin wrapper for game completion hooks
 
-Multiplayer / COOP persistence
-------------------------------------------
-  src/server/services/coop-service.ts — rooms, games, guesses (uses Prisma directly;
-    future: extract room-repository.ts / game-repository.ts if file size warrants).
+Multiplayer / COOP / COMPETITIVE persistence
+-------------------------------------------
+  src/server/services/coop-service.ts
+  src/server/services/competitive-service.ts
+  (Prisma directly; future: extract repositories if file size warrants)
 
-Deterministic FAB overlays (image-guess-admin parity)
-------------------------------------------------------
-  src/lib/utils/seededRandom.ts
-  src/lib/puzzle/zones/fabZones.ts
-  src/lib/puzzle/effects/types.ts
-  src/lib/puzzle/regionTypes.ts
-  src/lib/puzzle/deterministicStep.ts   — PUZZLE_STEP_COUNT, getShuffledCells, generateStep
-  src/lib/puzzle/generateRegions.ts
-  src/components/game/StepCardPreview.tsx — client render (seed + step + imageUrl)
-  Single/coop APIs expose puzzle.seed + puzzle.imageUrl as cardImageUrl for overlays.
+Deterministic reveal overlays (client + server)
+-----------------------------------------------
+  packages/shared/src/reveal/*
+  apps/web: src/components/game/StepCardPreview.tsx — seed + step + imageUrl
+  apps/api: src/lib/puzzle/* — zone/plan math (naming legacy; not DB “puzzles”)
+
+  HTTP APIs expose snapshot fields: cardImageUrl, revealSeed, revealCardKind,
+  cardTemplateKey, plus cardId / cardName (terminal rules per mode).
 
 Conventions
 -----------
   - Guests: pass hostGuestId / guestId; registered users use hostUserId / userId.
-  - Never run migrate reset on shared Supabase — see MIGRATION_STRATEGY.txt.
+  - Do not run prisma migrate reset on production without intent — see MIGRATION_STRATEGY.txt.

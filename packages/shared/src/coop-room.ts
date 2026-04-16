@@ -18,8 +18,9 @@ export type CoopRoomSnapshot = {
     status: string;
     currentStep: number | null;
     totalSteps: number;
+    cardId: string;
     cardImageUrl: string;
-    puzzleSeed: string;
+    revealSeed: string;
     currentImageUrl: string | null;
     revealCardKind: CardZoneValidityKind;
     cardTemplateKey: CardTemplateKey;

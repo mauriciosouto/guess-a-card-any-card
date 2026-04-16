@@ -11,7 +11,7 @@ export type RoomSnapshot = {
   id: string;
   mode: GameMode;
   state: RoomState;
-  /** Selected `Puzzle.fabSet` codes in lobby; empty = any FAB puzzle. */
+  /** Selected FAB release names in lobby; empty = any set (full pool at deal time). */
   selectedSets: string[];
   timerPerStepSeconds?: number | null;
 };

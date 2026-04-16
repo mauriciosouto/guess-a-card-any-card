@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export type SetSelectorProps = {
-  /** Controlled selected set names — parent loads from puzzle service. */
+  /** Controlled selected set names — parent loads from the `…/sets` API (card catalog). */
   value: string[];
   onChange: (sets: string[]) => void;
 };
 
-/** Set selection for match setup — options populated from DB in puzzle layer. */
+/** Set selection for match setup — options from the runtime card catalog. */
 export function SetSelector({ value, onChange }: SetSelectorProps) {
   const [draft, setDraft] = useState("");
 

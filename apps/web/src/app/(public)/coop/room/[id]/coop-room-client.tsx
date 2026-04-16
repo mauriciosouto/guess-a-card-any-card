@@ -7,6 +7,7 @@ import { GameHistoryPanel, type HistoryEntry } from "@/components/game/GameHisto
 import { GuessCardAutocomplete } from "@/components/game/GuessCardAutocomplete";
 import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
+import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { StepIndicator } from "@/components/game/StepIndicator";
 import { TurnIndicator } from "@/components/game/TurnIndicator";
 import { Button } from "@/components/ui/button";
@@ -258,14 +259,6 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
     }
   }
 
-  async function toggleSet(name: string) {
-    if (!snap) return;
-    const cur = new Set(snap.selectedSets);
-    if (cur.has(name)) cur.delete(name);
-    else cur.add(name);
-    await patchSets([...cur]);
-  }
-
   async function onStart() {
     setBusy(true);
     setAsyncFeedback("Raising the veil…");
@@ -471,38 +464,15 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             <p className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
               FAB sets (optional)
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {setsLoading ? (
-                <span
-                  className="text-sm text-[var(--gold-dim)] animate-pulse"
-                  aria-busy="true"
-                >
-                  Gathering set sigils from the archive…
-                </span>
-              ) : sets.length === 0 ? (
-                <span className="text-sm text-[var(--mist)]">
-                  No FAB set codes on published puzzles yet — you can still start from the full FAB pool.
-                </span>
-              ) : (
-                sets.map((name) => {
-                  const on = snap.selectedSets.includes(name);
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      disabled={busy || !snap.requesterIsHost}
-                      onClick={() => void toggleSet(name)}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        on
-                          ? "border-[var(--gold)]/60 bg-[var(--gold)]/15 text-[var(--gold-bright)]"
-                          : "border-[var(--wine-deep)] text-[var(--parchment-dim)] hover:border-[var(--gold)]/30"
-                      } disabled:opacity-40`}
-                    >
-                      {name}
-                    </button>
-                  );
-                })
-              )}
+            <div className="mt-3">
+              <SetMultiSelect
+                options={sets}
+                value={new Set(snap.selectedSets)}
+                onChange={(next) => void patchSets([...next])}
+                disabled={busy || !snap.requesterIsHost}
+                loading={setsLoading}
+                emptyLabel="No sets loaded from the card catalog — you can still start from the full FAB pool."
+              />
             </div>
             <p className="mt-2 text-[0.7rem] text-[var(--mist)]">Only the host toggles FAB set filters.</p>
           </div>
@@ -550,8 +520,8 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
               />
               <PuzzleViewer
                 imageUrl={g.cardImageUrl}
-                puzzleSeed={g.puzzleSeed}
-                puzzleStep={g.currentStep ?? 1}
+                revealSeed={g.revealSeed}
+                revealStep={g.currentStep ?? 1}
                 revealTotalSteps={g.totalSteps}
                 revealCardKind={g.revealCardKind}
                 cardTemplateKey={g.cardTemplateKey}
@@ -685,8 +655,8 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
           <div className="mt-6">
             <PuzzleViewer
               imageUrl={g.cardImageUrl}
-              puzzleSeed={g.puzzleSeed}
-              puzzleStep={g.totalSteps}
+              revealSeed={g.revealSeed}
+              revealStep={g.totalSteps}
               revealTotalSteps={g.totalSteps}
               revealCardKind={g.revealCardKind}
               cardTemplateKey={g.cardTemplateKey}

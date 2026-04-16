@@ -14,7 +14,7 @@ import {
   submitCoopGuess,
   updateCoopSelectedSets,
 } from "@/server/services/coop-service";
-import { getAvailableSets } from "@/server/services/puzzle-service";
+import { respondWithCatalogSets } from "@/server/respond-with-catalog-sets";
 
 function requireGuestHeader(c: { req: { header: (n: string) => string | undefined } }): string {
   const gid = c.req.header("x-guest-id")?.trim();
@@ -30,14 +30,7 @@ function handleCoopErr(c: Context, e: unknown) {
 }
 
 export const coopRoutes = new Hono()
-  .get("/sets", async (c) => {
-    try {
-      const sets = await getAvailableSets();
-      return c.json({ sets });
-    } catch (e) {
-      return handleCoopErr(c, e);
-    }
-  })
+  .get("/sets", (c) => respondWithCatalogSets(c))
   .post("/rooms", async (c) => {
     try {
       const guestId = requireGuestHeader(c);

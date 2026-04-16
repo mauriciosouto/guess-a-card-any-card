@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "description": "Reveal engine — zonas por tipo, fases y plantillas (packages/shared). Coords 0-1 card space.",
+  "templateKeyForKind": {
+    "attackAction": "actionLike",
+    "nonAttackAction": "actionLike",
+    "instant": "actionLike",
+    "attackReaction": "actionLike",
+    "defenseReaction": "actionLike",
+    "weapon": "weaponEquipment",
+    "equipment": "weaponEquipment",
+    "hero": "hero"
+  },
+  "validityByCardKind": {
+    "attackAction": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": true,
+      "pitch": true,
+      "attack": true,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "nonAttackAction": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": true,
+      "pitch": true,
+      "attack": false,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "instant": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": true,
+      "pitch": true,
+      "attack": false,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "attackReaction": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": true,
+      "pitch": true,
+      "attack": true,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "defenseReaction": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": true,
+      "pitch": true,
+      "attack": false,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "weapon": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": false,
+      "pitch": false,
+      "attack": true,
+      "defense": false,
+      "intellect": false,
+      "life": false
+    },
+    "equipment": {
+      "art": true,
+      "text": true,
+      "type": true,
+      "cost": false,
+      "pitch": false,
+      "attack": false,
+      "defense": true,
+      "intellect": false,
+      "life": false
+    },
+    "hero": {
+      "art": true,
+      "text": false,
+      "type": true,
+      "cost": false,
+      "pitch": false,
+      "attack": false,
+      "defense": false,
+      "intellect": true,
+      "life": true
+    }
+  },
+  "revealPhaseRules": {
+    "phases": ["early", "mid", "late"],
+    "textSlicePhaseByIndex": ["mid", "mid", "early", "late"],
+    "typeLinePhaseByKind": {
+      "hero": "late",
+      "attackAction": "mid",
+      "nonAttackAction": "mid",
+      "instant": "mid",
+      "attackReaction": "mid",
+      "defenseReaction": "mid",
+      "weapon": "mid",
+      "equipment": "mid"
+    },
+    "statPhaseByKind": {
+      "attackAction": { "cost": "early", "pitch": "mid", "attack": "late" },
+      "nonAttackAction": { "cost": "early", "pitch": "mid" },
+      "instant": { "cost": "early", "pitch": "mid" },
+      "attackReaction": { "cost": "early", "pitch": "mid", "attack": "late" },
+      "defenseReaction": { "cost": "early", "pitch": "mid" },
+      "weapon": { "attack": "late" },
+      "equipment": { "defense": "mid" },
+      "hero": { "intellect": "mid", "life": "late" }
+    },
+    "heroArtPhaseMap_5x3_rowCol0Based": [
+      ["early", "mid", "early"],
+      ["mid", "late", "mid"],
+      ["mid", "mid", "mid"],
+      ["mid", "mid", "mid"],
+      ["late", "late", "late"]
+    ],
+    "nonHeroArtPhases_3x3": {
+      "rule": "corners early; center B2 (row 1 col 1) late; other edge cells mid",
+      "B2_cell": { "row": 1, "col": 1 }
+    }
+  },
+  "templates": {
+    "actionLike": {
+      "key": "actionLike",
+      "zones": [
+        { "id": "pitch", "rect": { "x": 0.05, "y": 0.04, "width": 0.14, "height": 0.08 } },
+        { "id": "name", "rect": { "x": 0.19, "y": 0.04, "width": 0.63, "height": 0.08 }, "alwaysHidden": true },
+        { "id": "cost", "rect": { "x": 0.81, "y": 0.04, "width": 0.14, "height": 0.08 } },
+        {
+          "id": "artGrid",
+          "grid": { "x": 0.05, "y": 0.12, "width": 0.9, "height": 0.48, "rows": 3, "cols": 3 }
+        },
+        {
+          "id": "textBlock",
+          "rect": { "x": 0.05, "y": 0.62, "width": 0.9, "height": 0.23 },
+          "slices": 4
+        },
+        { "id": "attack", "rect": { "x": 0.05, "y": 0.86, "width": 0.2, "height": 0.08 } },
+        { "id": "type", "rect": { "x": 0.25, "y": 0.86, "width": 0.5, "height": 0.08 } },
+        { "id": "defense", "rect": { "x": 0.75, "y": 0.86, "width": 0.2, "height": 0.08 } },
+        { "id": "footer", "rect": { "x": 0.05, "y": 0.94, "width": 0.9, "height": 0.04 }, "alwaysHidden": true }
+      ]
+    },
+    "hero": {
+      "key": "hero",
+      "zones": [
+        { "id": "name", "rect": { "x": 0.08, "y": 0.04, "width": 0.72, "height": 0.08 }, "alwaysHidden": true },
+        {
+          "id": "visualGrid",
+          "grid": { "x": 0.05, "y": 0.12, "width": 0.9, "height": 0.68, "rows": 5, "cols": 3 }
+        },
+        { "id": "intellect", "rect": { "x": 0.05, "y": 0.8, "width": 0.2, "height": 0.08 } },
+        { "id": "type", "rect": { "x": 0.25, "y": 0.8, "width": 0.5, "height": 0.06 } },
+        { "id": "life", "rect": { "x": 0.75, "y": 0.8, "width": 0.2, "height": 0.08 } },
+        { "id": "footer", "rect": { "x": 0.25, "y": 0.88, "width": 0.5, "height": 0.05 }, "alwaysHidden": true }
+      ]
+    },
+    "weaponEquipment": {
+      "key": "weaponEquipment",
+      "zones": [
+        { "id": "name", "rect": { "x": 0.08, "y": 0.04, "width": 0.84, "height": 0.08 }, "alwaysHidden": true },
+        {
+          "id": "artGrid",
+          "grid": { "x": 0.05, "y": 0.12, "width": 0.9, "height": 0.48, "rows": 3, "cols": 3 }
+        },
+        {
+          "id": "textBlock",
+          "rect": { "x": 0.05, "y": 0.62, "width": 0.9, "height": 0.2 },
+          "slices": 4
+        },
+        { "id": "attack", "rect": { "x": 0.05, "y": 0.82, "width": 0.2, "height": 0.08 } },
+        { "id": "type", "rect": { "x": 0.35, "y": 0.82, "width": 0.3, "height": 0.06 } },
+        { "id": "defense", "rect": { "x": 0.75, "y": 0.82, "width": 0.2, "height": 0.08 } },
+        { "id": "footer", "rect": { "x": 0.25, "y": 0.9, "width": 0.5, "height": 0.05 }, "alwaysHidden": true }
+      ]
+    }
+  }
+}

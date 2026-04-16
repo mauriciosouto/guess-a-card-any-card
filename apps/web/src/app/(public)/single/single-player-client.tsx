@@ -140,103 +140,124 @@ export function SinglePlayerClient() {
 
   if (phase === "done" && game) {
     const won = game.status === "WON";
-    return (
-      <div className="mx-auto max-w-lg space-y-8 text-center">
-        <Panel variant="textured" className="border-[var(--gold)]/25 p-6 sm:p-10">
-          <p className="font-display text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-[var(--gold-dim)]">
-            {won ? "Omen resolved" : "Reading ended"}
-          </p>
-
-          {won ? (
-            <div
-              className={cn(
-                "mt-5 rounded-xl border-2 border-emerald-600/45 bg-emerald-950/30 px-4 py-6 shadow-[0_0_48px_rgba(52,211,153,0.18)] sm:px-6 sm:py-8",
-                "animate-pulse-win",
-              )}
-            >
-              <p className="font-display text-2xl font-semibold leading-snug tracking-[0.12em] text-emerald-100 sm:text-3xl">
-                The veil opens
-              </p>
-              <p className="mx-auto mt-3 max-w-md font-display text-[0.7rem] font-semibold uppercase leading-relaxed tracking-[0.22em] text-emerald-200/85 sm:text-xs">
-                You named the card — the omen is answered.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-6 space-y-2 rounded-xl border border-[var(--blood)]/35 bg-[var(--blood)]/08 px-4 py-6">
-              <p className="font-display text-xl font-semibold tracking-[0.14em] text-[var(--gold-bright)] sm:text-2xl">
-                The veil closed
-              </p>
-              <p className="text-sm text-[var(--parchment-dim)]">
-                The true name was not spoken in time — study the sigil log and return when the stars align.
-              </p>
-            </div>
-          )}
-
-          <div className={cn("mt-8 space-y-2", won ? "mt-10" : "mt-8")}>
-            <p className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
-              Named card
-            </p>
-            <h2 className="text-gradient-gold font-display text-2xl font-semibold leading-snug tracking-[0.06em] sm:text-3xl">
-              {game.cardName}
-            </h2>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-[var(--parchment-dim)]">
-              {game.dataSource ? <span>{game.dataSource}</span> : null}
-              {game.fabSet ? (
-                <span className="text-[var(--mist)]">
-                  <span className="text-[var(--gold-dim)]">FAB</span> {game.fabSet}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
+    const cardReveal = (
+      <div
+        className={cn(
+          "relative w-full max-w-sm overflow-visible rounded-2xl sm:max-w-md lg:max-w-lg xl:max-w-xl",
+          won && triumphActive && "animate-gold-triumph animate-card-reveal-rise",
+        )}
+      >
+        {won ? (
           <div
-            className={cn(
-              "relative mx-auto mt-8 max-w-sm overflow-visible rounded-2xl",
-              won && triumphActive && "animate-gold-triumph animate-card-reveal-rise",
-            )}
-          >
-            {won ? (
-              <div
-                className="pointer-events-none absolute -inset-3 -z-10 rounded-3xl opacity-80 blur-2xl"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at center, rgba(201,162,39,0.35) 0%, transparent 65%)",
-                }}
-                aria-hidden
-              />
-            ) : null}
-            <PuzzleViewer
-              imageUrl={game.cardImageUrl}
-              puzzleSeed={game.puzzleSeed}
-              puzzleStep={totalSteps}
-              revealTotalSteps={totalSteps}
-              revealCardKind={game.revealCardKind}
-              cardTemplateKey={game.cardTemplateKey}
-              terminalFullReveal
-              alt={game.cardName ?? "Card"}
-              stepKey="end"
-              className="mx-auto w-full max-w-sm"
-            />
-          </div>
+            className="pointer-events-none absolute -inset-3 -z-10 rounded-3xl opacity-80 blur-2xl"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, rgba(201,162,39,0.35) 0%, transparent 65%)",
+            }}
+            aria-hidden
+          />
+        ) : null}
+        <PuzzleViewer
+          imageUrl={game.cardImageUrl}
+          revealSeed={game.revealSeed}
+          revealStep={totalSteps}
+          revealTotalSteps={totalSteps}
+          revealCardKind={game.revealCardKind}
+          cardTemplateKey={game.cardTemplateKey}
+          terminalFullReveal
+          alt={game.cardName ?? "Card"}
+          stepKey="end"
+          className="mx-auto w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl"
+        />
+      </div>
+    );
 
-          <div className="mt-8 rounded-lg border border-[var(--gold)]/12 bg-[var(--void)]/45 px-4 py-3">
-            <p className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.24em] text-[var(--gold-dim)]">
-              This reading
-            </p>
-            <p className="mt-1.5 tabular-nums text-sm text-[var(--parchment)]">
-              <span className="text-[var(--gold-bright)]">{game.attemptCount}</span>
-              <span className="text-[var(--mist)]"> attempts sealed</span>
-            </p>
-          </div>
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 sm:px-6 xl:max-w-7xl">
+        <Panel variant="textured" className="border-[var(--gold)]/25 p-6 sm:p-8">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+            <div className="min-w-0 flex-1 text-center lg:text-left">
+              <p className="font-display text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-[var(--gold-dim)]">
+                {won ? "Omen resolved" : "Reading ended"}
+              </p>
 
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Button onClick={reset}>Play again</Button>
-            <Button variant="outline" asChild>
-              <Link href="/">Home</Link>
-            </Button>
+              {won ? (
+                <div
+                  className={cn(
+                    "mt-5 rounded-xl border-2 border-emerald-600/45 bg-emerald-950/30 px-4 py-6 shadow-[0_0_48px_rgba(52,211,153,0.18)] sm:px-6 sm:py-7",
+                    "animate-pulse-win",
+                  )}
+                >
+                  <p className="font-display text-2xl font-semibold leading-snug tracking-[0.12em] text-emerald-100 sm:text-3xl">
+                    The veil opens
+                  </p>
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    "mt-6 rounded-xl border border-[var(--blood)]/35 bg-[var(--blood)]/08 px-4 py-6 sm:px-6 sm:py-7",
+                    "flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:gap-10",
+                  )}
+                >
+                  <p className="font-display shrink-0 text-xl font-semibold tracking-[0.14em] text-[var(--gold-bright)] sm:text-2xl">
+                    The veil closed
+                  </p>
+                  <p className="text-center text-sm leading-relaxed text-[var(--parchment-dim)] sm:text-left lg:max-w-xl lg:border-l lg:border-[var(--blood)]/25 lg:pl-10">
+                    The true name was not spoken in time — study the sigil log and return when the
+                    stars align.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-5 border-t border-[var(--gold)]/12 pt-6 text-center lg:w-[min(100%,20rem)] lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0 lg:text-left xl:w-96">
+              <div className="space-y-2">
+                <p className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
+                  Named card
+                </p>
+                <h2 className="text-gradient-gold font-display text-2xl font-semibold leading-snug tracking-[0.06em] sm:text-3xl">
+                  {game.cardName}
+                </h2>
+                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-[var(--parchment-dim)] lg:justify-start">
+                  {game.dataSource ? <span>{game.dataSource}</span> : null}
+                  {game.fabSet ? (
+                    <span className="text-[var(--mist)]">
+                      <span className="text-[var(--gold-dim)]">FAB</span> {game.fabSet}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[var(--gold)]/12 bg-[var(--void)]/45 px-4 py-3">
+                <p className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.24em] text-[var(--gold-dim)]">
+                  This reading
+                </p>
+                <p className="mt-1.5 tabular-nums text-sm text-[var(--parchment)]">
+                  <span className="text-[var(--gold-bright)]">{game.attemptCount}</span>
+                  <span className="text-[var(--mist)]"> attempts sealed</span>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
+                <Button onClick={reset}>Play again</Button>
+                <Button variant="outline" asChild>
+                  <Link href="/">Home</Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </Panel>
-        <GameHistoryPanel entries={historyEntries} alwaysShowList />
+
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10 xl:gap-12">
+          <div className="flex min-w-0 flex-1 justify-center lg:justify-start lg:self-start lg:pt-0.5">
+            <div className="w-full max-w-sm sm:max-w-md lg:sticky lg:top-24 lg:max-w-none xl:max-w-xl">
+              {cardReveal}
+            </div>
+          </div>
+          <div className="min-w-0 lg:w-[min(100%,22rem)] lg:shrink-0 xl:w-96">
+            <GameHistoryPanel entries={historyEntries} alwaysShowList className="text-left" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -277,8 +298,8 @@ export function SinglePlayerClient() {
         >
           <PuzzleViewer
             imageUrl={game.cardImageUrl}
-            puzzleSeed={game.puzzleSeed}
-            puzzleStep={currentStep}
+            revealSeed={game.revealSeed}
+            revealStep={currentStep}
             revealTotalSteps={totalSteps}
             revealCardKind={game.revealCardKind}
             cardTemplateKey={game.cardTemplateKey}

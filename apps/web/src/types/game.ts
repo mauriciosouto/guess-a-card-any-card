@@ -24,11 +24,12 @@ export type RuntimeGameState = {
   gameId: string;
   roomId?: string;
   mode: GameMode;
-  puzzleId: string;
+  /** Catalog printing id for the dealt card. */
+  cardId: string;
   cardName: string;
-  /** Always `fab` for puzzles served by this app; stored as `Puzzle.dataSource`. */
+  /** Always `fab` for catalog-backed games. */
   dataSource: string;
-  /** FAB catalog set code when set by admin; optional. */
+  /** FAB catalog set code when present. */
   fabSet?: string | null;
   currentStep: number;
   totalSteps: number;
@@ -38,26 +39,4 @@ export type RuntimeGameState = {
   stepDeadlineAt?: string;
   startedAt: string;
   finishedAt?: string;
-};
-
-/** Puzzle as stored in DB (admin + game columns). */
-export type Puzzle = {
-  id: string;
-  dataSource: string;
-  fabSet?: string | null;
-  externalCardId: string;
-  cardName: string;
-  imageUrl: string;
-  seed: string;
-  isActive: boolean;
-  savedAt: string | null;
-  createdAt: string;
-  steps: PuzzleStep[];
-};
-
-export type PuzzleStep = {
-  step: number;
-  imageUrl?: string | null;
-  blur: number;
-  brightness: number;
 };

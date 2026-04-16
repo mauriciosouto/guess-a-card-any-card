@@ -18,7 +18,7 @@ export type SetMultiSelectProps = {
 };
 
 /**
- * Multi-select dropdown for FAB set codes (`Puzzle.fabSet`), filled from the game `…/sets` API.
+ * Multi-select for FAB release names from the game `…/sets` API (in-memory card catalog).
  */
 export function SetMultiSelect({
   options,
@@ -27,7 +27,7 @@ export function SetMultiSelect({
   disabled,
   loading = false,
   loadingLabel = "Gathering set sigils from the archive…",
-  emptyLabel = "No FAB set codes on published puzzles yet.",
+  emptyLabel = "No sets loaded from the card catalog yet.",
   className,
 }: SetMultiSelectProps) {
   const [open, setOpen] = useState(false);

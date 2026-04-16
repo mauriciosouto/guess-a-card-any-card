@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils/cn";
 
 export type StepIndicatorProps = {
   current: number;
-  /** Total veils / steps in this ritual (usually fixed puzzle step count). */
+  /** Total veils / steps in this ritual (reveal plan length). */
   total: number;
   className?: string;
 };

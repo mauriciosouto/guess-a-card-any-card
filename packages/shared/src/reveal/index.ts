@@ -21,6 +21,6 @@ export function getRevealPlanTotalSteps(
   return buildRevealPlan(card, templateKey, seed).length;
 }
 
-/** Until puzzles store FAB classification, all games use this reveal profile for step counts + client rendering. */
+/** Default FAB reveal classification for step counts + client rendering when no card-specific profile applies. */
 export const DEFAULT_REVEAL_CARD: CardForCandidateZones = { kind: "attackAction" };
 export const DEFAULT_REVEAL_TEMPLATE_KEY: CardTemplateKey = "actionLike";

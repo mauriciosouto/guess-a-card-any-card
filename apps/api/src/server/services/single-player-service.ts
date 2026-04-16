@@ -1,19 +1,17 @@
-import { GameStatus } from "@/generated/prisma/client";
+import { GameStatus, type Game } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeGuessText } from "@/lib/game/guess-normalize";
-import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
+import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
+import { newRevealSeed, resolveGameCard } from "@/lib/game-card-resolution";
 import {
   resolveSinglePlayerGuess,
   singlePlayerAttemptCounts,
 } from "@/lib/game/single-player-logic";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
-import type { HostKey } from "@/server/repositories/puzzle-repository";
 import { mergeUserCardStatsAfterGame } from "@/server/repositories/stats-repository";
 import { recordRegisteredUserGameOutcome } from "@/server/services/stats-service";
-import {
-  notifyPuzzleCompletedForHost,
-  resolvePuzzleForNewGame,
-} from "@/server/services/puzzle-service";
+import { getRandomCard } from "@/server/services/card-catalog-service";
 
 export class SinglePlayerHttpError extends Error {
   constructor(
@@ -49,12 +47,6 @@ export function parsePlayerIdentityFromHeaders(headers: {
     400,
     "Provide X-User-Id (registered) or X-Guest-Id (guest).",
   );
-}
-
-function hostKeyFromIdentity(id: PlayerIdentity): HostKey | null {
-  if (id.userId) return { hostUserId: id.userId };
-  if (id.guestId) return { hostGuestId: id.guestId };
-  return null;
 }
 
 function matchesGamePlayer(
@@ -108,16 +100,17 @@ export type SingleGamePublic = {
   status: GameStatus;
   currentStep: number | null;
   totalSteps: number;
+  cardId: string;
   /** Full card art for client-side reveal overlays. */
   cardImageUrl: string;
-  puzzleSeed: string;
+  revealSeed: string;
   currentImageUrl: string | null;
   /** Matches `@gac/shared/reveal` inputs for `getRevealStateAtStep`. */
   revealCardKind: CardZoneValidityKind;
   cardTemplateKey: CardTemplateKey;
   cardName: string | null;
   dataSource: string | null;
-  /** FAB set code from admin when present; null for legacy or non-FAB puzzles. */
+  /** FAB catalog set code. */
   fabSet: string | null;
   attemptCount: number;
   attemptsUsed: number;
@@ -126,36 +119,37 @@ export type SingleGamePublic = {
 };
 
 export async function startSinglePlayerGame(params: {
-  /** FAB set codes from the lobby dropdown; empty = any playable FAB puzzle. */
+  /** FAB release names from the lobby; empty = full catalog pool. */
   selectedFabSets: string[];
   identity: PlayerIdentity;
 }): Promise<{ gameId: string; game: SingleGamePublic }> {
-  const host = hostKeyFromIdentity(params.identity);
-  if (!host) throw new SinglePlayerHttpError(400, "Missing player identity.");
-
   const displayName = await resolveSinglePlayerSessionDisplayName(params.identity);
 
-  const puzzle = await resolvePuzzleForNewGame({
-    selectedFabSets: params.selectedFabSets,
-    host,
-    recentHistoryLimit: 50,
-  });
-
-  if (!puzzle) {
+  const catalogCard = getRandomCard(params.selectedFabSets);
+  if (!catalogCard) {
     throw new SinglePlayerHttpError(
       400,
       params.selectedFabSets.length > 0
-        ? "No puzzle found for those FAB sets — try another selection or leave sets open for any."
-        : "No playable FAB puzzle found.",
+        ? "No card in the catalog for those sets — try another selection or leave sets open for any."
+        : "No playable card found in the catalog.",
     );
   }
+
+  const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
+  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
 
   const gameId = await prisma.$transaction(async (tx) => {
     const game = await tx.game.create({
       data: {
         roomId: null,
         mode: "SINGLE",
-        puzzleId: puzzle.id,
+        cardId: catalogCard.id,
+        cardName: catalogCard.name,
+        cardSet: catalogCard.setKey,
+        cardImageUrl,
+        revealSeed: newRevealSeed(),
+        revealCardKind,
+        cardTemplateKey,
         status: GameStatus.IN_PROGRESS,
         currentStep: 1,
       },
@@ -183,11 +177,10 @@ export async function startSinglePlayerGame(params: {
 async function loadSingleGameForPlayer(gameId: string, identity: PlayerIdentity) {
   const game = await prisma.game.findUnique({
     where: { id: gameId },
-      include: {
-        puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
-        guesses: { orderBy: { createdAt: "asc" }, include: { gamePlayer: true } },
-        gamePlayers: true,
-      },
+    include: {
+      guesses: { orderBy: { createdAt: "asc" }, include: { gamePlayer: true } },
+      gamePlayers: true,
+    },
   });
 
   if (!game || game.mode !== "SINGLE") {
@@ -215,29 +208,22 @@ export async function getSinglePlayerGamePublic(params: {
   return buildSingleGamePublic(game);
 }
 
-function buildSingleGamePublic(game: {
-  status: GameStatus;
-  currentStep: number | null;
-  guesses: Array<{
-    id: string;
-    stepNumber: number;
-    guessText: string;
-    isCorrect: boolean;
-    createdAt: Date;
-  }>;
-  puzzle: {
-    cardName: string;
-    dataSource: string;
-    fabSet: string | null;
-    imageUrl: string;
-    seed: string;
-    steps: Array<{ step: number; imageUrl: string | null }>;
-  };
-} & { id: string }): SingleGamePublic {
-  const totalSteps = puzzleRevealTotalSteps(game.puzzle);
+function buildSingleGamePublic(
+  game: Game & {
+    status: GameStatus;
+    currentStep: number | null;
+    guesses: Array<{
+      id: string;
+      stepNumber: number;
+      guessText: string;
+      isCorrect: boolean;
+      createdAt: Date;
+    }>;
+  },
+): SingleGamePublic {
+  const resolved = resolveGameCard(game);
+  const totalSteps = resolved.totalSteps;
   const terminal = game.status === GameStatus.WON || game.status === GameStatus.LOST;
-  const profile = defaultPuzzleRevealProfile();
-  const heroArt = game.puzzle.imageUrl;
 
   const { used, remaining } = singlePlayerAttemptCounts(totalSteps, game.guesses.length);
 
@@ -246,14 +232,15 @@ function buildSingleGamePublic(game: {
     status: game.status,
     currentStep: game.currentStep,
     totalSteps,
-    cardImageUrl: heroArt,
-    puzzleSeed: game.puzzle.seed,
-    currentImageUrl: heroArt,
-    revealCardKind: profile.cardKind,
-    cardTemplateKey: profile.templateKey,
-    cardName: terminal ? game.puzzle.cardName : null,
-    dataSource: terminal ? game.puzzle.dataSource : null,
-    fabSet: terminal ? game.puzzle.fabSet : null,
+    cardId: game.cardId,
+    cardImageUrl: resolved.cardImageUrl,
+    revealSeed: resolved.seed,
+    currentImageUrl: resolved.cardImageUrl,
+    revealCardKind: resolved.revealCardKind,
+    cardTemplateKey: resolved.cardTemplateKey,
+    cardName: terminal ? resolved.cardName : null,
+    dataSource: terminal ? resolved.dataSource : null,
+    fabSet: terminal ? resolved.fabSet : null,
     attemptCount: game.guesses.length,
     attemptsUsed: used,
     attemptsRemaining: remaining,
@@ -301,16 +288,8 @@ export async function forfeitSinglePlayerGame(params: {
       data: { didWin: false },
     });
 
-    return { player, puzzleId: game.puzzleId };
+    return { player, cardId: game.cardId };
   });
-
-  const hk = hostKeyFromIdentity({
-    userId: txResult.player.userId,
-    guestId: txResult.player.guestId,
-  });
-  if (hk) {
-    await notifyPuzzleCompletedForHost(hk, txResult.puzzleId).catch(() => {});
-  }
 
   if (txResult.player.userId) {
     const guesses = await prisma.guess.findMany({
@@ -327,7 +306,7 @@ export async function forfeitSinglePlayerGame(params: {
 
     await mergeUserCardStatsAfterGame({
       userId: txResult.player.userId,
-      puzzleId: txResult.puzzleId,
+      cardId: txResult.cardId,
       won: false,
       attempts: attempted,
       durationMs: duration,
@@ -355,7 +334,6 @@ export async function submitSinglePlayerGuess(params: {
     const game = await tx.game.findUnique({
       where: { id: params.gameId },
       include: {
-        puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
         guesses: true,
         gamePlayers: true,
       },
@@ -379,8 +357,9 @@ export async function submitSinglePlayerGuess(params: {
       throw new SinglePlayerHttpError(409, "You already sealed a guess for this step.");
     }
 
-    const totalSteps = puzzleRevealTotalSteps(game.puzzle);
-    const cardNorm = normalizeGuessText(game.puzzle.cardName);
+    const resolved = resolveGameCard(game);
+    const totalSteps = resolved.totalSteps;
+    const cardNorm = normalizeGuessText(resolved.cardName);
 
     const resolution = resolveSinglePlayerGuess({
       currentStep: stepNum,
@@ -429,7 +408,7 @@ export async function submitSinglePlayerGuess(params: {
           solvedTotalTimeMs: totalTimeMs,
         },
       });
-      return { status: GameStatus.WON, player, puzzleId: game.puzzleId };
+      return { status: GameStatus.WON, player, cardId: game.cardId };
     }
 
     if (resolution.outcome === "lose") {
@@ -444,7 +423,7 @@ export async function submitSinglePlayerGuess(params: {
         where: { id: player.id },
         data: { didWin: false },
       });
-      return { status: GameStatus.LOST, player, puzzleId: game.puzzleId };
+      return { status: GameStatus.LOST, player, cardId: game.cardId };
     }
 
     await tx.game.update({
@@ -455,19 +434,11 @@ export async function submitSinglePlayerGuess(params: {
     return {
       status: GameStatus.IN_PROGRESS,
       player,
-      puzzleId: game.puzzleId,
+      cardId: game.cardId,
     };
   });
 
   if (txResult.status === GameStatus.WON || txResult.status === GameStatus.LOST) {
-    const hk = hostKeyFromIdentity({
-      userId: txResult.player.userId,
-      guestId: txResult.player.guestId,
-    });
-    if (hk) {
-      await notifyPuzzleCompletedForHost(hk, txResult.puzzleId).catch(() => {});
-    }
-
     if (txResult.player.userId) {
       const guesses = await prisma.guess.findMany({
         where: { gameId: params.gameId },
@@ -485,7 +456,7 @@ export async function submitSinglePlayerGuess(params: {
 
       await mergeUserCardStatsAfterGame({
         userId: txResult.player.userId,
-        puzzleId: txResult.puzzleId,
+        cardId: txResult.cardId,
         won: txResult.status === GameStatus.WON,
         attempts: attempted,
         durationMs: duration,

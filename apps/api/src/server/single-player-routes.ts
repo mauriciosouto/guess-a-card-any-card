@@ -1,10 +1,8 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import {
-  findCardNameSuggestions,
-  getAvailableSets,
-} from "@/server/services/puzzle-service";
+import { respondWithCatalogSets } from "@/server/respond-with-catalog-sets";
+import { searchPlayableCatalogCardNames } from "@/server/services/card-catalog-service";
 import {
   forfeitSinglePlayerGame,
   parsePlayerIdentityFromHeaders,
@@ -22,21 +20,14 @@ function handleErr(c: Context, e: unknown) {
 }
 
 export const singlePlayerRoutes = new Hono()
-  .get("/sets", async (c) => {
-    try {
-      const sets = await getAvailableSets();
-      return c.json({ sets });
-    } catch (e) {
-      return handleErr(c, e);
-    }
-  })
+  .get("/sets", (c) => respondWithCatalogSets(c))
   .get("/cards/search", async (c) => {
     try {
       const q = c.req.query("q")?.trim() ?? "";
       if (q.length < 3) {
         return c.json({ names: [] as string[] });
       }
-      const names = await findCardNameSuggestions({ query: q, limit: 20 });
+      const names = searchPlayableCatalogCardNames(q, 20);
       return c.json({ names });
     } catch (e) {
       return handleErr(c, e);

@@ -6,6 +6,20 @@ Estado: aprobado para implementación
 Rol de referencia: Senior Project Lead  
 Objetivo: convertir la visión del producto en una guía ejecutable para Cursor y para desarrollo iterativo real.
 
+## 0.1 Arquitectura actual (catálogo en runtime, 2026)
+
+Implementación vigente en este monorepo:
+
+- **Fuente canónica de cartas:** paquete **`@flesh-and-blood/cards`** (printings oficiales).
+- **Catálogo en API:** filtrado y cargado **en memoria al arranque** del servidor; los **sets disponibles** salen de ese catálogo.
+- **Nueva partida:** se elige una **carta al azar** del catálogo (filtros por set en lobby); no hay filas `Puzzle` / `PuzzleStep` ni `puzzleId` en el flujo.
+- **Persistencia:** cada `Game` guarda un **snapshot** (`cardId`, `cardName`, `cardSet`, `cardImageUrl`, `revealSeed`, `revealCardKind`, `cardTemplateKey`) para reveal y guesses **deterministas** sin joins a tablas de contenido.
+- **Motor de reveal:** planes y pasos se calculan en runtime (shared package + seed); mismo seed ⇒ mismo plan.
+- **Admin:** **no** forma parte del gameplay ni de esta base de datos por ahora.
+- **Stats por carta:** `user_card_stats` usa **`cardId`** (id de catálogo), no puzzle.
+
+Secciones históricas del documento que hablan de “puzzle DB” o admin compartiendo Supabase describen un diseño anterior; la **§0.1** prevalece para implementación.
+
 ---
 
 # 1. PRODUCT VISION
@@ -53,12 +67,12 @@ Secundario:
 2. **Cada step debe aumentar tensión y claridad.**
 3. **La UX debe sentirse rápida y limpia.**
 4. **Single player debe funcionar perfecto antes de escalar multiplayer.**
-5. **El Game App nunca genera puzzles; solo los consume.**
+5. **El Game App no autoría contenido de cartas; consume el catálogo oficial y persiste snapshots por partida.**
 6. **El sistema debe ser extensible a datasets futuros, pero sin contaminar el MVP actual.**
 
 ## 2.2 No objetivos iniciales
 - no crear chat interno
-- no crear editor de puzzles en el game app
+- no crear editor de cartas / datasets custom en el game app en esta fase
 - no permitir custom datasets en esta fase
 - no construir ranking global complejo en el MVP
 - no complicar el flujo con demasiadas opciones al inicio
@@ -76,7 +90,7 @@ Si llega al step final sin acertar, pierde.
 
 ### Objetivos del modo
 - ser el primer modo en producción
-- validar UX del puzzle viewer
+- validar UX del reveal de carta (viewer principal)
 - validar autocomplete
 - validar tracking de intentos y tiempo
 - validar estadísticas personales
@@ -157,7 +171,7 @@ El host elige una carta específica y desafía a otra persona a adivinarla.
 
 ### Reglas base
 - host puede filtrar por set y seleccionar carta específica
-- el challenge usa el puzzle ya generado de esa carta
+- el challenge usa la misma carta elegida (snapshot / reveal que single player)
 - el desafiante juega con mismas reglas de single player
 
 ### Estado recomendado
@@ -165,60 +179,34 @@ No MVP inicial. Diseñar la arquitectura ahora, implementar después de single p
 
 ---
 
-# 4. PUZZLE SYSTEM CONTRACT
+# 4. CARD CATALOG & REVEAL (runtime)
 
-## 4.1 Fuente de verdad
-La aplicación de admin genera y guarda puzzles en la misma Supabase usada por el game app.
+## 4.1 Fuente de verdad de cartas
+- **Paquete:** `@flesh-and-blood/cards` (printings oficiales).
+- **Catálogo jugable:** el API filtra y mantiene una estructura en memoria **al iniciar el proceso**. Si el catálogo no carga, **no hay gameplay** hasta corregir el arranque o la dependencia.
 
-## 4.2 El game app nunca:
-- genera steps
-- edita steps
-- recalcula transformaciones
-- exporta/importa manualmente
+## 4.2 Qué hace el game app
+- Expone **sets** derivados del catálogo (lobby).
+- Al crear partida: **elige una carta al azar** del pool (respetando filtros de set).
+- Escribe en `games` un **snapshot** completo para esa partida (ver §12).
+- Calcula el **plan de reveal** de forma **determinista** a partir de `revealSeed`, `revealCardKind` y `cardTemplateKey` (misma lógica cliente/servidor vía `@gac/shared/reveal`).
+- Registra guesses, resultados y stats; **no** depende de tablas `Puzzle` / `PuzzleStep`.
 
-## 4.3 El game app sí:
-- consulta puzzles disponibles
-- filtra por set
-- selecciona puzzle aleatorio
-- renderiza `step_n_url`
-- muestra metadatos de partida
-- registra guesses y resultados
+## 4.3 Qué no hace el game app (MVP actual)
+- No edita el dataset oficial de FaB en runtime.
+- No almacena imágenes pre-generadas por step en DB; el cliente compone overlays desde arte + plan.
 
-## 4.4 Estructura conceptual de puzzle
-```ts
-type Puzzle = {
-  id: string
-  cardCode: string
-  cardName: string
-  setName: string
-  totalSteps: number
-  steps: PuzzleStep[]
-  isActive: boolean
-  createdAt: string
-}
+## 4.4 Modelo conceptual por partida (snapshot)
+Los campos persistidos en `games` incluyen al menos:
+- `cardId` — id estable de impresión en el catálogo
+- `cardName`, `cardSet`, `cardImageUrl`
+- `revealSeed` — entropía del plan de velos
+- `revealCardKind`, `cardTemplateKey` — clasificación para el motor de zonas
 
-type PuzzleStep = {
-  stepNumber: number
-  imageUrl: string
-  label?: string
-}
-```
-
-## 4.5 Reglas de selección
-- host elige uno o más sets
-- el sistema elige aleatoriamente un puzzle dentro de esos sets
-- se intenta evitar repetir carta al mismo host
-- si no hay suficientes puzzles no repetidos, se permite fallback a puzzles previos con criterio controlado
-
-## 4.6 Política de no repetición
-### Opción recomendada
-Guardar historial de puzzles usados por host:
-- por usuario registrado: `host_user_id`
-- por invitado: `guest_fingerprint/session_id`
-
-Regla:
-- primero buscar puzzles no usados recientemente
-- si no alcanza, relajar criterio
+## 4.5 Selección y variedad
+- Host / jugador elige uno o más **sets** (códigos alineados al catálogo).
+- Se sortea una carta del unión de esos sets (con reglas de filtrado del servicio).
+- Anti-repetición fuerte por host es **opcional / futuro**; no requiere `HostPuzzleHistory`.
 
 ---
 
@@ -292,7 +280,7 @@ Regla:
 
 ## 6.2 Información siempre visible durante partida
 ### Obligatoria
-- imagen actual del puzzle
+- arte de la carta / estado de reveal actual
 - step actual / total
 - intentos usados
 - intentos restantes
@@ -388,14 +376,13 @@ Preferencia:
 - Frontend: Next.js
 - Backend: Hono
 - Real-time: WebSockets nativos
-- Database: Supabase PostgreSQL
+- Database: PostgreSQL (p. ej. Supabase)
 - ORM: Prisma
 - Auth: Supabase Auth con OAuth Google / Discord
-- Storage puzzle assets: Supabase Storage o URLs persistidas
+- Cartas: `@flesh-and-blood/cards` + catálogo en memoria en el API; arte vía URLs resueltas en servidor
 
 ## 9.2 Repositorio
-Solo `/game`  
-El admin ya existe como sistema separado.
+Monorepo del **game app** (web + API + `packages/shared`). No hay admin acoplado a este flujo.
 
 ## 9.3 Arquitectura lógica
 ### Capas
@@ -403,7 +390,7 @@ El admin ya existe como sistema separado.
 2. Game State Layer
 3. Real-time Transport Layer
 4. Persistence Layer
-5. Puzzle Access Layer
+5. **Card catalog & reveal** (runtime + snapshot en DB)
 6. Auth/Profile Layer
 
 ## 9.4 Principio técnico
@@ -412,7 +399,7 @@ Separar claramente:
 - lógica de estado de partida
 - lógica de transporte WS
 - persistencia
-- servicios de puzzle
+- **carga del catálogo y resolución de carta / reveal**
 
 ---
 
@@ -453,7 +440,6 @@ Separar claramente:
       /profile
       /rooms
       /game-session
-      /puzzles
       /stats
     /lib
       /supabase
@@ -493,13 +479,11 @@ Separar claramente:
 - GuestSession
 - Room
 - RoomPlayer
-- GameSession
-- Puzzle
-- PuzzleStep
+- Game (partida con **snapshot de carta** en DB)
+- GamePlayer
 - Guess
-- UserStats
+- UserStat / UserCardStat (por **`cardId`**)
 - Achievement
-- HostPuzzleHistory
 
 ## 11.2 Conceptual responsibilities
 ### User
@@ -511,14 +495,14 @@ Identidad liviana no persistente o semi-persistente para invitados.
 ### Room
 Contenedor de pre-game y de multiplayer live session.
 
-### GameSession
-Instancia concreta de una partida sobre un puzzle específico.
+### Game
+Instancia de partida; referencia una carta vía **campos snapshot** (`cardId`, nombre, set, arte, seed, kind, template) — no FK a tablas de “puzzle”.
 
 ### Guess
 Registro de intento por jugador y step.
 
-### HostPuzzleHistory
-Permite evitar repeticiones al host.
+### UserCardStat
+Agregados por **`userId` + `cardId`** (catálogo), no por puzzle legacy.
 
 ---
 
@@ -544,31 +528,11 @@ created_at timestamptz not null default now()
 updated_at timestamptz not null default now()
 ```
 
-## 12.3 Tabla `puzzles`
-```sql
-id uuid pk
-card_code text not null unique
-card_name text not null
-set_name text not null
-is_active boolean not null default true
-total_steps int not null
-metadata jsonb null
-created_at timestamptz not null default now()
-updated_at timestamptz not null default now()
-```
+## 12.3 Catálogo de cartas (runtime)
 
-## 12.4 Tabla `puzzle_steps`
-```sql
-id uuid pk
-puzzle_id uuid not null references puzzles(id) on delete cascade
-step_number int not null
-image_url text not null
-created_at timestamptz not null default now()
+No hay tabla `puzzles` / `puzzle_steps` en el modelo actual. El listado jugable vive en memoria a partir de **`@flesh-and-blood/cards`**. Un redeploy reinicia el proceso y **refresca** el catálogo.
 
-unique(puzzle_id, step_number)
-```
-
-## 12.5 Tabla `rooms`
+## 12.4 Tabla `rooms`
 ```sql
 id uuid pk
 host_user_id uuid null references users(id)
@@ -582,7 +546,7 @@ created_at timestamptz not null default now()
 updated_at timestamptz not null default now()
 ```
 
-## 12.6 Tabla `room_players`
+## 12.5 Tabla `room_players`
 ```sql
 id uuid pk
 room_id uuid not null references rooms(id) on delete cascade
@@ -597,13 +561,23 @@ left_at timestamptz null
 is_connected boolean not null default true
 ```
 
-## 12.7 Tabla `games`
+## 12.6 Tabla `games`
 ```sql
 id uuid pk
 room_id uuid null references rooms(id) on delete set null
 mode text not null
-puzzle_id uuid not null references puzzles(id)
+-- Snapshot de carta (catálogo); todos NOT NULL en el esquema actual de juego
+card_id text not null
+card_name text not null
+card_set text not null
+card_image_url text not null
+reveal_seed text not null
+reveal_card_kind text not null
+card_template_key text not null
 status text not null
+current_step int null
+active_turn_room_player_id uuid null references room_players(id)
+competitive_step_deadline_at timestamptz null
 started_at timestamptz not null default now()
 finished_at timestamptz null
 winner_user_id uuid null references users(id)
@@ -613,7 +587,7 @@ winning_total_time_ms int null
 created_at timestamptz not null default now()
 ```
 
-## 12.8 Tabla `game_players`
+## 12.7 Tabla `game_players`
 ```sql
 id uuid pk
 game_id uuid not null references games(id) on delete cascade
@@ -629,7 +603,7 @@ did_win boolean not null default false
 created_at timestamptz not null default now()
 ```
 
-## 12.9 Tabla `guesses`
+## 12.8 Tabla `guesses`
 ```sql
 id uuid pk
 game_id uuid not null references games(id) on delete cascade
@@ -642,7 +616,7 @@ time_taken_ms int not null
 created_at timestamptz not null default now()
 ```
 
-## 12.10 Tabla `user_stats`
+## 12.9 Tabla `user_stats`
 ```sql
 user_id uuid pk references users(id) on delete cascade
 games_played int not null default 0
@@ -654,29 +628,20 @@ best_time_record_ms int null
 updated_at timestamptz not null default now()
 ```
 
-## 12.11 Tabla `user_card_stats`
+## 12.10 Tabla `user_card_stats`
 ```sql
 id uuid pk
 user_id uuid not null references users(id) on delete cascade
-puzzle_id uuid not null references puzzles(id) on delete cascade
+card_id text not null
 times_played int not null default 0
 times_won int not null default 0
 average_attempts numeric(6,2) null
 average_time_ms numeric(12,2) null
 
-unique(user_id, puzzle_id)
+unique(user_id, card_id)
 ```
 
-## 12.12 Tabla `host_puzzle_history`
-```sql
-id uuid pk
-host_user_id uuid null references users(id)
-host_guest_id text null
-puzzle_id uuid not null references puzzles(id) on delete cascade
-last_played_at timestamptz not null default now()
-```
-
-## 12.13 Tabla `achievements`
+## 12.11 Tabla `achievements`
 ```sql
 id uuid pk
 code text unique not null
@@ -685,7 +650,7 @@ description text not null
 created_at timestamptz not null default now()
 ```
 
-## 12.14 Tabla `user_achievements`
+## 12.12 Tabla `user_achievements`
 ```sql
 id uuid pk
 user_id uuid not null references users(id) on delete cascade
@@ -727,11 +692,10 @@ enum GameStatus {
 ```
 
 ## 13.2 Índices importantes
-- `puzzles(set_name, is_active)`
-- `puzzle_steps(puzzle_id, step_number unique)`
+- `games(room_id)`, `games(status)`, `games(active_turn_room_player_id)`
 - `guesses(game_id, game_player_id, step_number)`
 - `room_players(room_id, joined_at)`
-- `host_puzzle_history(host_user_id, last_played_at)`
+- `user_card_stats(user_id)`
 
 ---
 
@@ -767,9 +731,10 @@ type RuntimeGameState = {
   gameId: string
   roomId?: string
   mode: GameMode
-  puzzleId: string
+  cardId: string
   cardName: string
-  setName: string
+  dataSource: string
+  fabSet?: string | null
   currentStep: number
   totalSteps: number
   status: "IN_PROGRESS" | "WON" | "LOST" | "FINISHED"
@@ -903,13 +868,13 @@ Recomendado:
 - `challengeEngine`
 
 Todos comparten:
-- puzzle access
+- acceso al catálogo / snapshot de carta
 - guess normalization
 - result calculation
 - persistence layer
 
 ## 17.2 Single Player engine responsibilities
-- iniciar partida con puzzle aleatorio
+- iniciar partida con carta aleatoria del catálogo
 - validar guess
 - avanzar step
 - determinar win/lose
@@ -1024,7 +989,7 @@ Al iniciar:
 - host start
 
 ## 21.4 Game screen
-- puzzle
+- carta / reveal (foco visual)
 - step / attempts info
 - guess input
 - history
@@ -1051,7 +1016,7 @@ Al iniciar:
 # 22. MOBILE-FIRST ADAPTATIONS
 
 ## 22.1 Layout priorities
-1. puzzle image
+1. arte / reveal de la carta
 2. input
 3. step info
 4. essential status
@@ -1177,7 +1142,7 @@ Si luego se comparte link con carta específica:
 - chat
 - ranking global complejo
 - spectating
-- custom puzzle selection pública
+- selección custom de carta expuesta públicamente sin control
 - demasiadas animaciones
 
 ---
@@ -1187,7 +1152,7 @@ Si luego se comparte link con carta específica:
 ## 27.1 Recommended order
 1. base repo + architecture
 2. auth + profile shell
-3. puzzle query layer
+3. card catalog service + snapshot en `games`
 4. single player engine
 5. guess normalization + autocomplete
 6. result persistence
@@ -1228,16 +1193,14 @@ Create a production-ready Prisma schema for this game app.
 Entities required:
 - users
 - profiles
-- puzzles
-- puzzle_steps
 - rooms
 - room_players
-- games
+- games (with card snapshot columns: cardId, cardName, cardSet, cardImageUrl,
+  revealSeed, revealCardKind, cardTemplateKey — no puzzle FK)
 - game_players
 - guesses
 - user_stats
-- user_card_stats
-- host_puzzle_history
+- user_card_stats (unique userId + cardId)
 - achievements
 - user_achievements
 
@@ -1252,27 +1215,27 @@ Requirements:
 After the schema, generate:
 - migration strategy notes
 - seed script plan
-- repository/service layer outline for puzzle selection and stats updates
+- repository/service layer outline for card catalog integration and stats updates
 ```
 
-## 28.3 Prompt 3 — Puzzle Access + Single Player Engine
+## 28.3 Prompt 3 — Card catalog + Single Player Engine
 ```text
 Implement the single player domain for "Guess a Card, Any Card".
 
 Requirements:
-- fetch available sets from puzzles table
+- load @flesh-and-blood/cards into a filtered in-memory catalog at API startup
+- fetch available sets from that catalog (not from DB puzzle tables)
 - create single-player game from selected sets
-- choose a random puzzle
-- avoid recent repeats for same host/user when possible
-- expose current step image
+- choose a random playable card; persist full snapshot on Game
+- expose reveal inputs (image URL, revealSeed, kind, template) for the client
 - accept one guess per step
 - normalize guess text
-- compare to canonical card name
+- compare to canonical card name from snapshot
 - on wrong guess, advance to next step
 - on correct guess, finish game
 - on max step reached without correct guess, lose game
 - persist game, player result and guesses
-- update user stats if authenticated
+- update user stats if authenticated; merge per-card stats by cardId
 
 Deliver:
 - domain services
@@ -1302,7 +1265,7 @@ Requirements:
 Build the full single player gameplay screen.
 
 Requirements:
-- centered puzzle image as the main focal point
+- centered card / reveal as the main focal point
 - visible step indicator and attempts remaining
 - guess input below image
 - smooth slide transition between steps
@@ -1410,7 +1373,7 @@ Requirements:
 Implement cooperative multiplayer mode.
 
 Rules:
-- same puzzle for all players
+- same card / reveal plan for all players
 - random but fixed player order decided at game start
 - only active player can submit the guess for the current step
 - if active player disconnects, host may submit on behalf of team
@@ -1424,10 +1387,10 @@ Rules:
 Implement the Challenge a Friend mode.
 
 Requirements:
-- host can filter by set and choose a specific card/puzzle
+- host can filter by set and choose a specific card from the catalog
 - challenge can be played on same device or by sharing a link
 - gameplay follows single-player rules
-- challenge metadata should preserve who created it and what puzzle was selected
+- challenge metadata should preserve who created it and which cardId was selected
 - structure code so challenge mode reuses single-player components wherever possible
 ```
 
@@ -1438,7 +1401,7 @@ Requirements:
 ## 29.1 Single Player done means
 - user can choose sets
 - system starts a game
-- puzzle renders correctly
+- reveal / carta se renderiza correctamente
 - suggestions work
 - guesses are persisted
 - win/lose works
@@ -1468,10 +1431,10 @@ Mitigación:
 - shared engine abstractions
 - typed WS contracts desde el inicio
 
-## 30.2 Risk: repeated puzzle frustration
+## 30.2 Risk: repetición de la misma carta
 Mitigación:
-- host puzzle history
-- recent exclusion window
+- ampliar pool (sets) y actualizar dependencia de cartas
+- (opcional futuro) historial por host en app — no depende de tablas puzzle en DB
 
 ## 30.3 Risk: autocomplete lag
 Mitigación:
@@ -1493,7 +1456,7 @@ La mejor forma de llevar esta idea a la realidad es:
 
 1. construir **single player impecable**
 2. dejar bien resueltos:
-   - puzzle contract
+   - snapshot de carta + reveal determinista
    - guess normalization
    - result persistence
    - profile/stats
@@ -1512,7 +1475,7 @@ Eso te da:
 Empezar inmediatamente con este orden:
 1. Foundation / skeleton
 2. Prisma schema
-3. Puzzle access + single player engine
+3. Card catalog + single player engine
 4. Single player UI
 5. Auth + profile
 6. Multiplayer foundations
@@ -1523,9 +1486,9 @@ Empezar inmediatamente con este orden:
 
 Este documento es la fuente de verdad del proyecto para comenzar implementación.  
 Si otro agente o chat toma el proyecto, debe asumir:
-- admin ya existe
-- game app es repositorio separado
-- Supabase es fuente compartida
+- **§0.1** describe la arquitectura implementada (catálogo `@flesh-and-blood/cards`, snapshot en `games`)
+- monorepo game app (web + API + shared); sin admin en el flujo actual
+- PostgreSQL para sesiones y stats; catálogo en memoria en el API
 - single player es prioridad
 - multiplayer viene después, pero ya condicionado por esta arquitectura
 

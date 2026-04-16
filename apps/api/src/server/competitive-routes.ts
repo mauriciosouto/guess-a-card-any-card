@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { getAvailableSets } from "@/server/services/puzzle-service";
+import { respondWithCatalogSets } from "@/server/respond-with-catalog-sets";
 import {
   CompetitiveHttpError,
   createCompetitiveRoom,
@@ -28,14 +28,7 @@ function handleErr(c: Context, e: unknown) {
 }
 
 export const competitiveRoutes = new Hono()
-  .get("/sets", async (c) => {
-    try {
-      const sets = await getAvailableSets();
-      return c.json({ sets });
-    } catch (e) {
-      return handleErr(c, e);
-    }
-  })
+  .get("/sets", (c) => respondWithCatalogSets(c))
   .post("/rooms", async (c) => {
     try {
       const guestId = requireGuestHeader(c);

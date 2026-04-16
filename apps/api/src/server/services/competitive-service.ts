@@ -10,13 +10,11 @@ import {
   assignCompetitiveRanks,
   resolveCompetitiveGuessOnStep,
 } from "@/lib/game/competitive-logic";
-import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
-import type { HostKey } from "@/server/repositories/puzzle-repository";
+import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
+import { newRevealSeed, resolveGameCard, type GameForCardResolution } from "@/lib/game-card-resolution";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
-import {
-  notifyPuzzleCompletedForHost,
-  resolvePuzzleForNewGame,
-} from "@/server/services/puzzle-service";
+import { getRandomCard } from "@/server/services/card-catalog-service";
 
 export class CompetitiveHttpError extends Error {
   constructor(
@@ -26,12 +24,6 @@ export class CompetitiveHttpError extends Error {
     super(message);
     this.name = "CompetitiveHttpError";
   }
-}
-
-function asHostKey(room: { hostUserId: string | null; hostGuestId: string | null }): HostKey | null {
-  if (room.hostUserId) return { hostUserId: room.hostUserId };
-  if (room.hostGuestId) return { hostGuestId: room.hostGuestId };
-  return null;
 }
 
 async function requireRoomPlayer(roomId: string, guestId: string) {
@@ -76,7 +68,6 @@ async function finishCompetitiveGame(
     where: { id: gameId },
     include: {
       gamePlayers: true,
-      puzzle: true,
     },
   });
   if (!game) return;
@@ -148,13 +139,6 @@ async function finishCompetitiveGame(
     where: { id: roomId },
     data: { state: RoomState.FINISHED },
   });
-
-  const hk = asHostKey(
-    await tx.room.findUniqueOrThrow({ where: { id: roomId } }),
-  );
-  if (hk) {
-    await notifyPuzzleCompletedForHost(hk, game.puzzleId).catch(() => {});
-  }
 }
 
 /**
@@ -167,7 +151,6 @@ async function tryAdvanceCompetitiveRound(
   const game = await tx.game.findUnique({
     where: { id: gameId },
     include: {
-      puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
       room: true,
       gamePlayers: true,
       guesses: true,
@@ -182,9 +165,10 @@ async function tryAdvanceCompetitiveRound(
   const timerSec = room.timerPerStepSeconds ?? 0;
   if (timerSec <= 0) throw new CompetitiveHttpError(500, "Timer not configured.");
 
-  const totalSteps = puzzleRevealTotalSteps(game.puzzle);
+  const resolved = resolveGameCard(game as GameForCardResolution);
+  const totalSteps = resolved.totalSteps;
   const stepNum = game.currentStep ?? 1;
-  const cardNorm = normalizeGuessText(game.puzzle.cardName);
+  const cardNorm = normalizeGuessText(resolved.cardName);
   const now = new Date();
   const deadline = game.competitiveStepDeadlineAt;
 
@@ -419,20 +403,17 @@ export async function startCompetitiveGame(params: {
     throw new CompetitiveHttpError(400, "Set a step timer (15–600s) before starting.");
   }
 
-  const hostKey = asHostKey(room);
-  const puzzle = await resolvePuzzleForNewGame({
-    selectedFabSets: room.selectedSets,
-    host: hostKey,
-    recentHistoryLimit: 50,
-  });
-  if (!puzzle) {
+  const catalogCard = getRandomCard(room.selectedSets);
+  if (!catalogCard) {
     throw new CompetitiveHttpError(
       400,
       room.selectedSets.length > 0
-        ? "No puzzle for those sets — adjust filters or clear them."
-        : "No playable puzzle found.",
+        ? "No card in the catalog for those sets — adjust filters or clear them."
+        : "No playable card found in the catalog.",
     );
   }
+  const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
+  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
 
   const deadline = new Date(Date.now() + timerSec * 1000);
 
@@ -441,7 +422,13 @@ export async function startCompetitiveGame(params: {
       data: {
         roomId: room.id,
         mode: "COMPETITIVE",
-        puzzleId: puzzle.id,
+        cardId: catalogCard.id,
+        cardName: catalogCard.name,
+        cardSet: catalogCard.setKey,
+        cardImageUrl,
+        revealSeed: newRevealSeed(),
+        revealCardKind,
+        cardTemplateKey,
         status: GameStatus.IN_PROGRESS,
         currentStep: 1,
         competitiveStepDeadlineAt: deadline,
@@ -481,8 +468,9 @@ export type CompetitiveGamePublic = {
   status: GameStatus;
   currentStep: number | null;
   totalSteps: number;
+  cardId: string;
   cardImageUrl: string;
-  puzzleSeed: string;
+  revealSeed: string;
   currentImageUrl: string | null;
   revealCardKind: CardZoneValidityKind;
   cardTemplateKey: CardTemplateKey;
@@ -549,7 +537,6 @@ export async function getCompetitiveRoomPublic(params: {
       roomPlayers: { where: { leftAt: null }, orderBy: { joinedAt: "asc" } },
       currentGame: {
         include: {
-          puzzle: { include: { steps: { orderBy: { step: "asc" } } } },
           guesses: { orderBy: { createdAt: "asc" }, include: { gamePlayer: true } },
           gamePlayers: true,
         },
@@ -571,9 +558,9 @@ export async function getCompetitiveRoomPublic(params: {
   const cg = room.currentGame;
 
   if (cg) {
-    const totalSteps = puzzleRevealTotalSteps(cg.puzzle);
-    const profile = defaultPuzzleRevealProfile();
-    const heroArt = cg.puzzle.imageUrl;
+    const resolved = resolveGameCard(cg as GameForCardResolution);
+    const totalSteps = resolved.totalSteps;
+    const heroArt = resolved.cardImageUrl;
     const stepNum = cg.currentStep ?? 1;
     const terminal =
       cg.status === GameStatus.WON ||
@@ -624,14 +611,15 @@ export async function getCompetitiveRoomPublic(params: {
       status: cg.status,
       currentStep: cg.currentStep,
       totalSteps,
+      cardId: cg.cardId,
       cardImageUrl: heroArt,
-      puzzleSeed: cg.puzzle.seed,
+      revealSeed: resolved.seed,
       currentImageUrl: heroArt,
-      revealCardKind: profile.cardKind,
-      cardTemplateKey: profile.templateKey,
-      cardName: terminal ? cg.puzzle.cardName : null,
-      dataSource: terminal ? cg.puzzle.dataSource : null,
-      fabSet: terminal ? cg.puzzle.fabSet : null,
+      revealCardKind: resolved.revealCardKind,
+      cardTemplateKey: resolved.cardTemplateKey,
+      cardName: terminal ? resolved.cardName : null,
+      dataSource: terminal ? resolved.dataSource : null,
+      fabSet: terminal ? resolved.fabSet : null,
       competitiveStepDeadlineAt: cg.competitiveStepDeadlineAt?.toISOString() ?? null,
       timerPerStepSeconds: room.timerPerStepSeconds,
       players: playerStats,
@@ -678,7 +666,6 @@ export async function submitCompetitiveGuess(params: {
       where: { id: params.gameId },
       include: {
         room: { include: { roomPlayers: { where: { leftAt: null } } } },
-        puzzle: true,
         gamePlayers: true,
       },
     });
@@ -709,7 +696,8 @@ export async function submitCompetitiveGuess(params: {
       throw new CompetitiveHttpError(409, "You already sealed a guess for this step.");
     }
 
-    const cardNorm = normalizeGuessText(game.puzzle.cardName);
+    const resolved = resolveGameCard(game as GameForCardResolution);
+    const cardNorm = normalizeGuessText(resolved.cardName);
     const isCorrect = guessesAreEqual(normalized, cardNorm);
 
     await tx.guess.create({
