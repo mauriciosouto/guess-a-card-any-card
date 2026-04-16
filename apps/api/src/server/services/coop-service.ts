@@ -1,8 +1,9 @@
 import { GameStatus, RoomState } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { guessesAreEqual, normalizeGuessText } from "@/lib/game/guess-normalize";
-import { resolveStepImageUrl } from "@/lib/game/puzzle-step-image";
+import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
 import { nextActiveRoomPlayerId, shuffleRoomPlayerIds } from "@/server/engines/coop-engine";
+import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 import type { HostKey } from "@/server/repositories/puzzle-repository";
 import { notifyCoopRoom } from "@/server/realtime/coop-notify";
 import {
@@ -44,6 +45,8 @@ export type CoopGamePublic = {
   cardImageUrl: string;
   puzzleSeed: string;
   currentImageUrl: string | null;
+  revealCardKind: CardZoneValidityKind;
+  cardTemplateKey: CardTemplateKey;
   cardName: string | null;
   dataSource: string | null;
   fabSet: string | null;
@@ -222,11 +225,6 @@ export async function startCoopGame(params: {
     );
   }
 
-  const orderedSteps = [...puzzle.steps].sort((a, b) => a.step - b.step);
-  if (orderedSteps.length === 0) {
-    throw new CoopHttpError(400, "That omen has no steps yet.");
-  }
-
   const shuffled = shuffleRoomPlayerIds(room.roomPlayers.map((p) => p.id));
   const firstActiveId = shuffled[0]!;
 
@@ -321,9 +319,9 @@ export async function getCoopRoomPublic(params: {
   const cg = room.currentGame;
 
   if (cg) {
-    const orderedSteps = [...cg.puzzle.steps].sort((a, b) => a.step - b.step);
-    const totalSteps = orderedSteps.length;
-    const stepRow = orderedSteps[(cg.currentStep ?? 1) - 1];
+    const totalSteps = puzzleRevealTotalSteps(cg.puzzle);
+    const profile = defaultPuzzleRevealProfile();
+    const heroArt = cg.puzzle.imageUrl;
     const terminal =
       cg.status === GameStatus.WON ||
       cg.status === GameStatus.LOST ||
@@ -332,10 +330,6 @@ export async function getCoopRoomPublic(params: {
     const activeRp = cg.activeTurnRoomPlayerId
       ? room.roomPlayers.find((p) => p.id === cg.activeTurnRoomPlayerId)
       : null;
-
-    const imageUrl = stepRow
-      ? resolveStepImageUrl(cg.puzzle, stepRow)
-      : resolveStepImageUrl(cg.puzzle, orderedSteps[0] ?? null);
 
     const activeGp = cg.activeTurnRoomPlayerId
       ? gamePlayerByRoomPlayer(cg.gamePlayers, cg.activeTurnRoomPlayerId)
@@ -361,11 +355,11 @@ export async function getCoopRoomPublic(params: {
       status: cg.status,
       currentStep: cg.currentStep,
       totalSteps,
-      cardImageUrl: cg.puzzle.imageUrl,
+      cardImageUrl: heroArt,
       puzzleSeed: cg.puzzle.seed,
-      currentImageUrl: terminal
-        ? resolveStepImageUrl(cg.puzzle, orderedSteps[totalSteps - 1]!)
-        : imageUrl,
+      currentImageUrl: heroArt,
+      revealCardKind: profile.cardKind,
+      cardTemplateKey: profile.templateKey,
       cardName: terminal ? cg.puzzle.cardName : null,
       dataSource: terminal ? cg.puzzle.dataSource : null,
       fabSet: terminal ? cg.puzzle.fabSet : null,
@@ -464,8 +458,7 @@ export async function submitCoopGuess(params: {
     });
     if (prior) throw new CoopHttpError(409, "A name was already spoken for this step.");
 
-    const orderedSteps = [...game.puzzle.steps].sort((a, b) => a.step - b.step);
-    const totalSteps = orderedSteps.length;
+    const totalSteps = puzzleRevealTotalSteps(game.puzzle);
     const cardNorm = normalizeGuessText(game.puzzle.cardName);
     const correct = guessesAreEqual(normalized, cardNorm);
 

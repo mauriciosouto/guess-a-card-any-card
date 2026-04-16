@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./reveal": "./src/reveal/index.ts",
+    "./config/card-templates": "./src/config/cardTemplates.ts"
   },
   "types": "./src/index.ts"
 }

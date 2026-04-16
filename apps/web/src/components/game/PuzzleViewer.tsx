@@ -1,9 +1,9 @@
 "use client";
 
 import { assetPaths } from "@/lib/design-tokens";
-import { PUZZLE_STEP_COUNT } from "@/lib/puzzle/deterministicStep";
 import { cn } from "@/lib/utils/cn";
 import { StepCardPreview } from "@/components/game/StepCardPreview";
+import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 
 export type PuzzleViewerProps = {
   imageUrl?: string | null;
@@ -11,13 +11,17 @@ export type PuzzleViewerProps = {
   /** Change when the step changes to replay slide animation */
   stepKey?: string | number;
   className?: string;
-  /**
-   * When set with `imageUrl` and `puzzleStep`, renders admin-parity zone overlays
-   * (`generateRegions(seed, puzzleStep)`); ignores DB `PuzzleStep.imageUrl` / blur rows for art.
-   */
   puzzleSeed?: string | null;
-  /** Global step 1..PUZZLE_STEP_COUNT (default 15). */
   puzzleStep?: number;
+  /** From server: `revealPlan.length` — caps overlay step. */
+  revealTotalSteps?: number;
+  revealCardKind?: CardZoneValidityKind;
+  cardTemplateKey?: CardTemplateKey;
+  /**
+   * After win/loss: show full card (drops name/footer + inactive stat-slot blackouts).
+   * Still uses `puzzleStep` / plan for zone masks; use final step + this for a fully unmasked card.
+   */
+  terminalFullReveal?: boolean;
 };
 
 /**
@@ -30,12 +34,19 @@ export function PuzzleViewer({
   className,
   puzzleSeed,
   puzzleStep = 1,
+  revealTotalSteps,
+  revealCardKind,
+  cardTemplateKey,
+  terminalFullReveal = false,
 }: PuzzleViewerProps) {
-  const safeOverlayStep = Math.min(
-    Math.max(1, puzzleStep),
-    PUZZLE_STEP_COUNT,
-  );
-  const useDeterministic = Boolean(imageUrl && puzzleSeed);
+  const useReveal =
+    Boolean(imageUrl && puzzleSeed && revealTotalSteps != null && revealTotalSteps >= 1 && revealCardKind);
+
+  const safeOverlayStep =
+    useReveal && revealTotalSteps != null
+      ? Math.min(Math.max(1, puzzleStep), revealTotalSteps)
+      : Math.max(1, puzzleStep);
+
   return (
     <div
       className={cn(
@@ -58,10 +69,6 @@ export function PuzzleViewer({
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--void)]/50 via-transparent to-[var(--gold)]/05" />
-        {/*
-          When max-height caps the box, width from aspect-ratio is below 100% of the frame.
-          flex justify-center on the outer frame + max-w ties width to the same cap so the slab stays centered.
-        */}
         <div
           className={cn(
             "relative z-[1] flex aspect-[3/4] w-full max-w-[min(100%,calc(0.75*min(72vh,520px)))] max-h-[min(72vh,520px)] min-w-0 flex-col items-center justify-center p-3 sm:p-4",
@@ -69,15 +76,18 @@ export function PuzzleViewer({
         >
           {imageUrl ? (
             <div
-              key={`${stepKey}-${imageUrl}-${puzzleSeed ?? ""}-${safeOverlayStep}`}
+              key={`${stepKey}-${imageUrl}-${puzzleSeed ?? ""}-${safeOverlayStep}-${revealCardKind ?? ""}-${terminalFullReveal ? "full" : "play"}`}
               className="relative z-[1] flex h-full max-h-[min(72vh,520px)] w-full min-w-0 items-center justify-center py-0.5"
             >
-              {useDeterministic ? (
+              {useReveal && revealCardKind ? (
                 <div className="animate-slide-step flex w-full justify-center">
                   <StepCardPreview
                     imageUrl={imageUrl}
                     seed={puzzleSeed!}
                     step={safeOverlayStep}
+                    revealCardKind={revealCardKind}
+                    cardTemplateKey={cardTemplateKey}
+                    terminalFullReveal={terminalFullReveal}
                     alt={alt}
                     className="w-[min(100%,280px)] max-w-full shrink-0 sm:w-[min(100%,320px)]"
                   />

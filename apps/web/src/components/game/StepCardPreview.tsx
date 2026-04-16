@@ -2,9 +2,13 @@
 
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
-import type { Effect } from "@/lib/puzzle/effects/types";
-import type { Region } from "@/lib/puzzle/regionTypes";
-import { generateRegions } from "@/lib/puzzle/generateRegions";
+import {
+  getBlackoutRegionsFromRevealState,
+  getRevealStateAtStep,
+  type CardTemplateKey,
+  type CardZoneValidityKind,
+  type Region,
+} from "@gac/shared/reveal";
 import { cn } from "@/lib/utils/cn";
 
 const BROKEN =
@@ -16,43 +20,26 @@ const BROKEN =
 export type StepCardPreviewProps = {
   imageUrl: string;
   seed: string;
-  /** Global puzzle step 1..15 (same contract as admin `generateRegions`). */
+  /** 1-based gameplay step (clamped by `getRevealStateAtStep` to the reveal plan). */
   step: number;
+  revealCardKind: CardZoneValidityKind;
   alt?: string;
   className?: string;
   /** Outer frame; inner card uses aspect 5/7 like admin. */
   frameClassName?: string;
   /** Hide step label (game HUD may show step elsewhere). */
   showStepLabel?: boolean;
+  /** Zone geometry from shared `cardTemplates` (default actionLike). */
+  cardTemplateKey?: CardTemplateKey;
+  /**
+   * End screen: drop name/footer and inactive stat-slot masks so the full card shows.
+   * @default false
+   */
+  terminalFullReveal?: boolean;
 };
 
-function buildFilterString(effects: Effect[]): string | undefined {
-  const parts: string[] = [];
-  for (const e of effects) {
-    if (e.type === "blur") {
-      const px = Math.round(((e.intensity ?? 4) + Number.EPSILON) * 100) / 100;
-      parts.push(`blur(${px}px)`);
-    } else if (e.type === "brightness") {
-      const v =
-        Math.round(((e.intensity ?? 1) + Number.EPSILON) * 1000) / 1000;
-      parts.push(`brightness(${v})`);
-    } else if (e.type === "invert") {
-      const v =
-        Math.round(((e.intensity ?? 1) + Number.EPSILON) * 1000) / 1000;
-      parts.push(`invert(${v})`);
-    }
-  }
-  return parts.length ? parts.join(" ") : undefined;
-}
-
-function RegionOverlay({
-  region,
-  imageUrl,
-}: {
-  region: Region;
-  imageUrl: string;
-}) {
-  const base: CSSProperties = {
+function BlackoutOverlay({ region }: { region: Region }) {
+  const style: CSSProperties = {
     position: "absolute",
     zIndex: region.zIndex ?? 1,
     left: `${region.x}%`,
@@ -61,83 +48,31 @@ function RegionOverlay({
     height: `${region.height}%`,
     pointerEvents: "none",
   };
-
-  if (region.effects.some((e) => e.type === "blackout")) {
-    return (
-      <div
-        style={base}
-        className="bg-[var(--card-zone-mask)]"
-      />
-    );
-  }
-
-  const rotateEff = region.effects.find((e) => e.type === "rotate");
-  const rotateDeg = rotateEff?.intensity;
-  const hasPixelate = region.effects.some((e) => e.type === "pixelate");
-  const filter = buildFilterString(region.effects);
-
-  const w = region.width;
-  const h = region.height;
-  const x = region.x;
-  const y = region.y;
-  if (w <= 0 || h <= 0) {
-    return null;
-  }
-
-  const wrapperStyle: CSSProperties = {
-    ...base,
-    overflow: "hidden",
-  };
-  if (rotateDeg != null) {
-    wrapperStyle.transform = `rotate(${rotateDeg}deg)`;
-    wrapperStyle.transformOrigin = "center center";
-  }
-
-  const imgStyle: CSSProperties = {
-    position: "absolute",
-    width: `${(100 / w) * 100}%`,
-    height: `${(100 / h) * 100}%`,
-    left: `${(-x / w) * 100}%`,
-    top: `${(-y / h) * 100}%`,
-    objectFit: "cover",
-    objectPosition: "top center",
-  };
-  if (filter) {
-    imgStyle.filter = filter;
-  }
-  if (hasPixelate) {
-    imgStyle.imageRendering = "pixelated";
-    imgStyle.transform = "scale(1.1)";
-  }
-
-  return (
-    <div style={wrapperStyle}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imageUrl}
-        alt=""
-        className="max-w-none select-none"
-        draggable={false}
-        style={imgStyle}
-      />
-    </div>
-  );
+  return <div style={style} className="bg-[var(--card-zone-mask)]" />;
 }
 
 /**
- * Client-side FAB puzzle step — overlays are a pure function of `seed` + `step`
- * (parity with image-guess-admin `puzzle-step-tile.tsx`).
+ * Client-side reveal: blackout overlays from `getRevealStateAtStep` + full hero art.
  */
 export function StepCardPreview({
   imageUrl,
   seed,
   step,
+  revealCardKind,
   alt = "Mystery card",
   className,
   frameClassName,
   showStepLabel = false,
+  cardTemplateKey = "actionLike",
+  terminalFullReveal = false,
 }: StepCardPreviewProps) {
-  const regions = useMemo(() => generateRegions(seed, step), [seed, step]);
+  const blackouts = useMemo(() => {
+    const state = getRevealStateAtStep({ kind: revealCardKind }, cardTemplateKey, seed, step);
+    return getBlackoutRegionsFromRevealState(state, {
+      includeAlwaysHidden: !terminalFullReveal,
+      includeInvalidForKindMasks: !terminalFullReveal,
+    });
+  }, [revealCardKind, cardTemplateKey, seed, step, terminalFullReveal]);
 
   return (
     <div className={cn("flex w-full flex-col items-center gap-1.5", className)}>
@@ -165,8 +100,8 @@ export function StepCardPreview({
             t.src = BROKEN;
           }}
         />
-        {regions.map((r) => (
-          <RegionOverlay key={r.id} region={r} imageUrl={imageUrl} />
+        {blackouts.map((r) => (
+          <BlackoutOverlay key={r.id} region={r} />
         ))}
       </div>
     </div>

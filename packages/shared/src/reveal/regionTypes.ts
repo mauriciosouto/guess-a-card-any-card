@@ -1,4 +1,4 @@
-import type { Effect } from "@/lib/puzzle/effects/types";
+import type { Effect } from "./effects/types";
 
 export type Region = {
   id: string;
@@ -12,7 +12,7 @@ export type Region = {
   zIndex?: number;
 };
 
-/** Frontend preview: regions from `generateRegions` (FAB zones + art grid). */
+/** Percent-space overlay rects (e.g. blackout regions from the reveal engine). */
 export type RegionBasedStep = {
   step: number;
   regions: Region[];

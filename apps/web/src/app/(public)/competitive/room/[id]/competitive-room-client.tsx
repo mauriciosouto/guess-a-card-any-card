@@ -580,6 +580,9 @@ export function CompetitiveRoomClient({ roomId }: CompetitiveRoomClientProps) {
                   imageUrl={g.cardImageUrl}
                   puzzleSeed={g.puzzleSeed}
                   puzzleStep={g.currentStep ?? 1}
+                  revealTotalSteps={g.totalSteps}
+                  revealCardKind={g.revealCardKind}
+                  cardTemplateKey={g.cardTemplateKey}
                   alt="Veiled card"
                   stepKey={`${g.id}-${g.currentStep ?? 0}`}
                   className="w-full max-w-lg lg:max-w-none"
@@ -678,6 +681,12 @@ export function CompetitiveRoomClient({ roomId }: CompetitiveRoomClientProps) {
           <div className="mt-6">
             <PuzzleViewer
               imageUrl={g.cardImageUrl}
+              puzzleSeed={g.puzzleSeed}
+              puzzleStep={g.totalSteps}
+              revealTotalSteps={g.totalSteps}
+              revealCardKind={g.revealCardKind}
+              cardTemplateKey={g.cardTemplateKey}
+              terminalFullReveal
               alt={g.cardName ?? "Card"}
               stepKey="final"
               className="mx-auto max-w-sm"

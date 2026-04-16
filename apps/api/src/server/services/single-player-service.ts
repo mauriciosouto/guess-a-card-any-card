@@ -1,11 +1,12 @@
 import { GameStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeGuessText } from "@/lib/game/guess-normalize";
-import { resolveStepImageUrl } from "@/lib/game/puzzle-step-image";
+import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
 import {
   resolveSinglePlayerGuess,
   singlePlayerAttemptCounts,
 } from "@/lib/game/single-player-logic";
+import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 import type { HostKey } from "@/server/repositories/puzzle-repository";
 import { mergeUserCardStatsAfterGame } from "@/server/repositories/stats-repository";
 import { recordRegisteredUserGameOutcome } from "@/server/services/stats-service";
@@ -107,10 +108,13 @@ export type SingleGamePublic = {
   status: GameStatus;
   currentStep: number | null;
   totalSteps: number;
-  /** Full card art for client-side FAB overlays (`generateRegions(seed, step)`). */
+  /** Full card art for client-side reveal overlays. */
   cardImageUrl: string;
   puzzleSeed: string;
   currentImageUrl: string | null;
+  /** Matches `@gac/shared/reveal` inputs for `getRevealStateAtStep`. */
+  revealCardKind: CardZoneValidityKind;
+  cardTemplateKey: CardTemplateKey;
   cardName: string | null;
   dataSource: string | null;
   /** FAB set code from admin when present; null for legacy or non-FAB puzzles. */
@@ -125,7 +129,7 @@ export async function startSinglePlayerGame(params: {
   /** FAB set codes from the lobby dropdown; empty = any playable FAB puzzle. */
   selectedFabSets: string[];
   identity: PlayerIdentity;
-}): Promise<{ gameId: string }> {
+}): Promise<{ gameId: string; game: SingleGamePublic }> {
   const host = hostKeyFromIdentity(params.identity);
   if (!host) throw new SinglePlayerHttpError(400, "Missing player identity.");
 
@@ -144,11 +148,6 @@ export async function startSinglePlayerGame(params: {
         ? "No puzzle found for those FAB sets — try another selection or leave sets open for any."
         : "No playable FAB puzzle found.",
     );
-  }
-
-  const orderedSteps = [...puzzle.steps].sort((a, b) => a.step - b.step);
-  if (orderedSteps.length === 0) {
-    throw new SinglePlayerHttpError(400, "Selected omen has no steps yet.");
   }
 
   const gameId = await prisma.$transaction(async (tx) => {
@@ -174,7 +173,11 @@ export async function startSinglePlayerGame(params: {
     return game.id;
   });
 
-  return { gameId };
+  const game = await getSinglePlayerGamePublic({
+    gameId,
+    identity: params.identity,
+  });
+  return { gameId, game };
 }
 
 async function loadSingleGameForPlayer(gameId: string, identity: PlayerIdentity) {
@@ -231,14 +234,10 @@ function buildSingleGamePublic(game: {
     steps: Array<{ step: number; imageUrl: string | null }>;
   };
 } & { id: string }): SingleGamePublic {
-  const orderedSteps = [...game.puzzle.steps].sort((a, b) => a.step - b.step);
-  const totalSteps = orderedSteps.length;
+  const totalSteps = puzzleRevealTotalSteps(game.puzzle);
   const terminal = game.status === GameStatus.WON || game.status === GameStatus.LOST;
-  const stepIdx = (game.currentStep ?? 1) - 1;
-  const stepRow = orderedSteps[stepIdx] ?? orderedSteps[0];
-  const imageUrl = stepRow
-    ? resolveStepImageUrl(game.puzzle, stepRow)
-    : resolveStepImageUrl(game.puzzle, orderedSteps[0] ?? null);
+  const profile = defaultPuzzleRevealProfile();
+  const heroArt = game.puzzle.imageUrl;
 
   const { used, remaining } = singlePlayerAttemptCounts(totalSteps, game.guesses.length);
 
@@ -247,11 +246,11 @@ function buildSingleGamePublic(game: {
     status: game.status,
     currentStep: game.currentStep,
     totalSteps,
-    cardImageUrl: game.puzzle.imageUrl,
+    cardImageUrl: heroArt,
     puzzleSeed: game.puzzle.seed,
-    currentImageUrl: terminal
-      ? resolveStepImageUrl(game.puzzle, orderedSteps[totalSteps - 1]!)
-      : imageUrl,
+    currentImageUrl: heroArt,
+    revealCardKind: profile.cardKind,
+    cardTemplateKey: profile.templateKey,
     cardName: terminal ? game.puzzle.cardName : null,
     dataSource: terminal ? game.puzzle.dataSource : null,
     fabSet: terminal ? game.puzzle.fabSet : null,
@@ -271,7 +270,7 @@ function buildSingleGamePublic(game: {
 export async function forfeitSinglePlayerGame(params: {
   gameId: string;
   identity: PlayerIdentity;
-}): Promise<{ status: GameStatus }> {
+}): Promise<SingleGamePublic> {
   const txResult = await prisma.$transaction(async (tx) => {
     const game = await tx.game.findUnique({
       where: { id: params.gameId },
@@ -335,7 +334,10 @@ export async function forfeitSinglePlayerGame(params: {
     }).catch(() => {});
   }
 
-  return { status: GameStatus.LOST };
+  return getSinglePlayerGamePublic({
+    gameId: params.gameId,
+    identity: params.identity,
+  });
 }
 
 export async function submitSinglePlayerGuess(params: {
@@ -343,7 +345,7 @@ export async function submitSinglePlayerGuess(params: {
   identity: PlayerIdentity;
   guessText: string;
   timeTakenMs: number;
-}): Promise<{ status: GameStatus }> {
+}): Promise<SingleGamePublic> {
   const normalized = normalizeGuessText(params.guessText);
   if (!normalized) {
     throw new SinglePlayerHttpError(400, "Speak a name, not silence.");
@@ -377,8 +379,7 @@ export async function submitSinglePlayerGuess(params: {
       throw new SinglePlayerHttpError(409, "You already sealed a guess for this step.");
     }
 
-    const orderedSteps = [...game.puzzle.steps].sort((a, b) => a.step - b.step);
-    const totalSteps = orderedSteps.length;
+    const totalSteps = puzzleRevealTotalSteps(game.puzzle);
     const cardNorm = normalizeGuessText(game.puzzle.cardName);
 
     const resolution = resolveSinglePlayerGuess({
@@ -492,5 +493,8 @@ export async function submitSinglePlayerGuess(params: {
     }
   }
 
-  return { status: txResult.status };
+  return getSinglePlayerGamePublic({
+    gameId: params.gameId,
+    identity: params.identity,
+  });
 }

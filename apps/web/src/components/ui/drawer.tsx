@@ -10,6 +10,8 @@ export type DrawerProps = {
   title: string;
   children: ReactNode;
   side?: "left" | "right";
+  /** Applied to the sliding sheet (e.g. rounded top on mobile). */
+  panelClassName?: string;
 };
 
 export function Drawer({
@@ -18,6 +20,7 @@ export function Drawer({
   title,
   children,
   side = "right",
+  panelClassName,
 }: DrawerProps) {
   useEffect(() => {
     if (!open) return;
@@ -48,6 +51,7 @@ export function Drawer({
         className={cn(
           "relative ml-auto flex h-full w-full max-w-md flex-col border-l-2 border-[var(--gold)]/25 bg-gradient-to-b from-[var(--plum)] to-[var(--void)] shadow-[-12px_0_48px_rgba(0,0,0,0.55)]",
           side === "left" && "ml-0 mr-auto border-l-0 border-r-2 shadow-[12px_0_48px_rgba(0,0,0,0.55)]",
+          panelClassName,
         )}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--gold)]/40 to-transparent" />

@@ -1,3 +1,5 @@
+import type { CardTemplateKey, CardZoneValidityKind } from "./reveal";
+
 /** JSON shape of `GET /api/competitive/rooms/:id`. */
 export type CompetitiveRoomSnapshot = {
   id: string;
@@ -19,6 +21,8 @@ export type CompetitiveRoomSnapshot = {
     cardImageUrl: string;
     puzzleSeed: string;
     currentImageUrl: string | null;
+    revealCardKind: CardZoneValidityKind;
+    cardTemplateKey: CardTemplateKey;
     cardName: string | null;
     dataSource: string | null;
     fabSet: string | null;

@@ -21,6 +21,10 @@ export type GameHistoryPanelProps = {
   className?: string;
   /** Inline list on small screens too (no floating button). Use on end-game / summary screens. */
   alwaysShowList?: boolean;
+  /** Mobile FAB: extra classes e.g. offset above sticky guess bar (`bottom-24`). */
+  mobileFabClassName?: string;
+  /** Sliding sheet panel (see `Drawer` `panelClassName`). */
+  drawerPanelClassName?: string;
 };
 
 function HistoryList({ entries }: { entries: HistoryEntry[] }) {
@@ -71,7 +75,13 @@ function HistoryList({ entries }: { entries: HistoryEntry[] }) {
 /**
  * Desktop: persistent sidebar. Mobile: primary action opens rune-styled drawer (blueprint HistoryDrawer).
  */
-export function GameHistoryPanel({ entries, className, alwaysShowList }: GameHistoryPanelProps) {
+export function GameHistoryPanel({
+  entries,
+  className,
+  alwaysShowList,
+  mobileFabClassName,
+  drawerPanelClassName,
+}: GameHistoryPanelProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (alwaysShowList) {
@@ -101,12 +111,18 @@ export function GameHistoryPanel({ entries, className, alwaysShowList }: GameHis
         </Panel>
       </div>
 
-      <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 lg:hidden">
+      <div
+        className={cn(
+          "fixed left-1/2 z-30 -translate-x-1/2 lg:hidden",
+          "bottom-[max(1rem,env(safe-area-inset-bottom))]",
+          mobileFabClassName,
+        )}
+      >
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          className="border border-[var(--gold)]/25 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_24px_rgba(201,162,39,0.12)]"
           onClick={() => setDrawerOpen(true)}
         >
           Sigil log
@@ -117,6 +133,7 @@ export function GameHistoryPanel({ entries, className, alwaysShowList }: GameHis
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         title="Sigil log"
+        panelClassName={drawerPanelClassName}
       >
         <HistoryList entries={entries} />
       </Drawer>

@@ -10,8 +10,9 @@ import {
   assignCompetitiveRanks,
   resolveCompetitiveGuessOnStep,
 } from "@/lib/game/competitive-logic";
-import { resolveStepImageUrl } from "@/lib/game/puzzle-step-image";
+import { puzzleRevealTotalSteps, defaultPuzzleRevealProfile } from "@/lib/reveal-profile";
 import type { HostKey } from "@/server/repositories/puzzle-repository";
+import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 import {
   notifyPuzzleCompletedForHost,
   resolvePuzzleForNewGame,
@@ -181,8 +182,7 @@ async function tryAdvanceCompetitiveRound(
   const timerSec = room.timerPerStepSeconds ?? 0;
   if (timerSec <= 0) throw new CompetitiveHttpError(500, "Timer not configured.");
 
-  const orderedSteps = [...game.puzzle.steps].sort((a, b) => a.step - b.step);
-  const totalSteps = orderedSteps.length;
+  const totalSteps = puzzleRevealTotalSteps(game.puzzle);
   const stepNum = game.currentStep ?? 1;
   const cardNorm = normalizeGuessText(game.puzzle.cardName);
   const now = new Date();
@@ -434,11 +434,6 @@ export async function startCompetitiveGame(params: {
     );
   }
 
-  const orderedSteps = [...puzzle.steps].sort((a, b) => a.step - b.step);
-  if (orderedSteps.length === 0) {
-    throw new CompetitiveHttpError(400, "Puzzle has no steps.");
-  }
-
   const deadline = new Date(Date.now() + timerSec * 1000);
 
   const gameId = await prisma.$transaction(async (tx) => {
@@ -489,6 +484,8 @@ export type CompetitiveGamePublic = {
   cardImageUrl: string;
   puzzleSeed: string;
   currentImageUrl: string | null;
+  revealCardKind: CardZoneValidityKind;
+  cardTemplateKey: CardTemplateKey;
   cardName: string | null;
   dataSource: string | null;
   fabSet: string | null;
@@ -574,18 +571,14 @@ export async function getCompetitiveRoomPublic(params: {
   const cg = room.currentGame;
 
   if (cg) {
-    const orderedSteps = [...cg.puzzle.steps].sort((a, b) => a.step - b.step);
-    const totalSteps = orderedSteps.length;
+    const totalSteps = puzzleRevealTotalSteps(cg.puzzle);
+    const profile = defaultPuzzleRevealProfile();
+    const heroArt = cg.puzzle.imageUrl;
     const stepNum = cg.currentStep ?? 1;
     const terminal =
       cg.status === GameStatus.WON ||
       cg.status === GameStatus.LOST ||
       cg.status === GameStatus.CANCELLED;
-
-    const stepRow = orderedSteps[stepNum - 1];
-    const imageUrl = stepRow
-      ? resolveStepImageUrl(cg.puzzle, stepRow)
-      : resolveStepImageUrl(cg.puzzle, orderedSteps[0] ?? null);
 
     const gpByRp = new Map(
       cg.gamePlayers.filter((g) => g.roomPlayerId).map((g) => [g.roomPlayerId!, g]),
@@ -631,11 +624,11 @@ export async function getCompetitiveRoomPublic(params: {
       status: cg.status,
       currentStep: cg.currentStep,
       totalSteps,
-      cardImageUrl: cg.puzzle.imageUrl,
+      cardImageUrl: heroArt,
       puzzleSeed: cg.puzzle.seed,
-      currentImageUrl: terminal
-        ? resolveStepImageUrl(cg.puzzle, orderedSteps[totalSteps - 1]!)
-        : imageUrl,
+      currentImageUrl: heroArt,
+      revealCardKind: profile.cardKind,
+      cardTemplateKey: profile.templateKey,
       cardName: terminal ? cg.puzzle.cardName : null,
       dataSource: terminal ? cg.puzzle.dataSource : null,
       fabSet: terminal ? cg.puzzle.fabSet : null,

@@ -15,7 +15,6 @@ import { Panel } from "@/components/ui/panel";
 import { useCoopRoomRealtime } from "@/hooks/use-coop-room-realtime";
 import { coopFetch } from "@/lib/coop/coop-api";
 import { getOrCreateGuestId } from "@/lib/coop/guest-id";
-import { PUZZLE_STEP_COUNT } from "@/lib/puzzle/deterministicStep";
 import { cn } from "@/lib/utils/cn";
 import type { CoopRoomSnapshot } from "@/types/coop-room";
 
@@ -546,13 +545,16 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             <div className="flex w-full max-w-lg flex-col items-stretch gap-6 lg:max-w-none">
               <StepIndicator
                 current={g.currentStep ?? 1}
-                total={PUZZLE_STEP_COUNT}
+                total={g.totalSteps}
                 className="w-full max-w-none"
               />
               <PuzzleViewer
                 imageUrl={g.cardImageUrl}
                 puzzleSeed={g.puzzleSeed}
                 puzzleStep={g.currentStep ?? 1}
+                revealTotalSteps={g.totalSteps}
+                revealCardKind={g.revealCardKind}
+                cardTemplateKey={g.cardTemplateKey}
                 alt="Veiled card"
                 stepKey={`${g.id}-${g.currentStep ?? 0}`}
                 className="w-full max-w-lg lg:max-w-none"
@@ -683,6 +685,12 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
           <div className="mt-6">
             <PuzzleViewer
               imageUrl={g.cardImageUrl}
+              puzzleSeed={g.puzzleSeed}
+              puzzleStep={g.totalSteps}
+              revealTotalSteps={g.totalSteps}
+              revealCardKind={g.revealCardKind}
+              cardTemplateKey={g.cardTemplateKey}
+              terminalFullReveal
               alt={g.cardName ?? "Card"}
               stepKey="final"
               className="mx-auto max-w-sm"

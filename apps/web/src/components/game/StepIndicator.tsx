@@ -18,17 +18,20 @@ export function StepIndicator({ current, total, className }: StepIndicatorProps)
 
   return (
     <div
-      className={cn("flex w-full max-w-md flex-col items-center gap-2", className)}
+      className={cn(
+        "flex w-full min-w-0 max-w-full flex-col items-center gap-2",
+        className,
+      )}
       role="status"
       aria-label={`Veil ${safeCurrent} of ${safeTotal}`}
     >
-      <div className="flex w-full items-center justify-center gap-0 px-0.5 sm:gap-px">
+      <div className="flex w-full min-w-0 max-w-full items-center justify-center px-0.5">
         {steps.map((n, i) => (
           <Fragment key={n}>
-            <div className="flex min-w-0 flex-1 flex-col items-center">
+            <div className="flex min-w-0 flex-1 basis-0 flex-col items-center justify-center">
               <div
                 className={cn(
-                  "relative z-[1] h-3 w-3 shrink-0 rounded-full border-2 transition-[transform,box-shadow,background-color,border-color,opacity] duration-300 sm:h-3.5 sm:w-3.5",
+                  "relative z-[1] aspect-square max-h-3.5 max-w-3.5 min-h-1.5 min-w-1.5 w-[min(0.875rem,100%)] rounded-full border-2 transition-[transform,box-shadow,background-color,border-color,opacity] duration-300",
                   n < safeCurrent &&
                     "border-[var(--gold-dim)]/90 bg-[var(--gold-dim)]/85 opacity-95 shadow-[0_0_8px_rgba(138,107,28,0.35)]",
                   n === safeCurrent &&
@@ -41,7 +44,7 @@ export function StepIndicator({ current, total, className }: StepIndicatorProps)
             {i < safeTotal - 1 ? (
               <div
                 className={cn(
-                  "mx-px h-0.5 min-w-[6px] flex-1 rounded-full transition-colors duration-300 sm:min-w-[8px]",
+                  "h-0.5 min-w-0 flex-1 basis-0 self-center rounded-full transition-colors duration-300",
                   n < safeCurrent
                     ? "bg-gradient-to-r from-[var(--gold)]/65 to-[var(--gold-dim)]/50"
                     : "bg-[var(--wine-deep)]/55",
