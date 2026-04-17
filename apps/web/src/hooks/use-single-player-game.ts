@@ -14,6 +14,13 @@ import type { SingleGameSnapshot } from "@/types/single-game";
 
 export type SinglePlayerPhase = "setup" | "play" | "done";
 
+export type UseSinglePlayerSessionOptions = {
+  /** When set, skips setup and loads this game (challenge / resume). */
+  initialGameId?: string | null;
+  /** `window.confirm` text for yield/forfeit (e.g. challenge). */
+  forfeitConfirmMessage?: string;
+};
+
 export function useSinglePlayerFabSets() {
   const [sets, setSets] = useState<string[]>([]);
   const [setsLoading, setSetsLoading] = useState(true);
@@ -41,9 +48,16 @@ export function useSinglePlayerFabSets() {
   return { sets, setsLoading, reloadFabSets: loadSets };
 }
 
-export function useSinglePlayerSession() {
-  const [phase, setPhase] = useState<SinglePlayerPhase>("setup");
-  const [gameId, setGameId] = useState<string | null>(null);
+const DEFAULT_FORFEIT_CONFIRM =
+  "End this reading? The true card will be revealed and this run counts as lost.";
+
+export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) {
+  const bootId = options?.initialGameId ?? null;
+  const forfeitConfirm = options?.forfeitConfirmMessage ?? DEFAULT_FORFEIT_CONFIRM;
+  const [phase, setPhase] = useState<SinglePlayerPhase>(() =>
+    bootId ? "play" : "setup",
+  );
+  const [gameId, setGameId] = useState<string | null>(() => bootId);
   const [game, setGame] = useState<SingleGameSnapshot | null>(null);
   const [guess, setGuess] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +67,11 @@ export function useSinglePlayerSession() {
 
   const applySnapshot = useCallback((snap: SingleGameSnapshot) => {
     setGame(snap);
-    if (snap.status === "WON" || snap.status === "LOST") setPhase("done");
+    const terminal =
+      snap.status === "WON" ||
+      snap.status === "LOST" ||
+      snap.status === "CANCELLED";
+    if (terminal) setPhase("done");
     else setPhase("play");
   }, []);
 
@@ -87,6 +105,15 @@ export function useSinglePlayerSession() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [gameId, phase, loadGame]);
+
+  useEffect(() => {
+    const id = options?.initialGameId;
+    if (!id) return;
+    setGameId(id);
+    setPhase("play");
+    setError(null);
+    void loadGame(id);
+  }, [options?.initialGameId, loadGame]);
 
   const start = useCallback(
     async (selectedFabSets: string[]) => {
@@ -128,11 +155,7 @@ export function useSinglePlayerSession() {
 
   const forfeit = useCallback(async () => {
     if (!gameId || game?.status !== "IN_PROGRESS") return;
-    if (
-      !window.confirm(
-        "End this reading? The true card will be revealed and this run counts as lost.",
-      )
-    ) {
+    if (!window.confirm(forfeitConfirm)) {
       return;
     }
     setBusy(true);
@@ -147,7 +170,7 @@ export function useSinglePlayerSession() {
       setAsyncFeedback(null);
       setBusy(false);
     }
-  }, [gameId, game?.status, applySnapshot]);
+  }, [gameId, game?.status, applySnapshot, forfeitConfirm]);
 
   const reset = useCallback(() => {
     setPhase("setup");

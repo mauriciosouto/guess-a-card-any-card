@@ -1,10 +1,15 @@
 import { RouteShell } from "@/components/layout/route-shell";
+import { ChallengeHostClient } from "./challenge-host-client";
 
 export default function ChallengePage() {
   return (
     <RouteShell
       title="Binding a rival"
-      description="Name the sigil yourself, then loose another soul upon it by link or same candle. Shares the solitary reading’s bones once that path is carved."
-    />
+      description="Pick one card, share one link. They play the same reading as single player; you see the outcome here when they’re done."
+      className="max-w-3xl"
+    >
+      <ChallengeHostClient />
+    </RouteShell>
   );
 }
+

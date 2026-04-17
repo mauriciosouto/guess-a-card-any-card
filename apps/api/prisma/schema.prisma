@@ -49,6 +49,18 @@ enum CompetitivePlayerState {
   ELIMINATED
 }
 
+enum ChallengeStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ChallengeOutcome {
+  WON
+  LOST
+  ABANDONED
+}
+
 /// Registered player; id typically matches auth.users.id once Supabase Auth is connected.
 model User {
   id          String   @id @default(uuid()) @db.Uuid
@@ -67,6 +79,7 @@ model User {
   userStats        UserStat?
   userCardStats    UserCardStat[]
   userAchievements UserAchievement[]
+  challengesCreated Challenge[] @relation("ChallengeCreator")
 
   @@map("users")
 }
@@ -166,11 +179,43 @@ model Game {
   activeTurnRoomPlayer RoomPlayer?  @relation("GameActiveTurn", fields: [activeTurnRoomPlayerId], references: [id], onDelete: SetNull)
   gamePlayers          GamePlayer[]
   guesses              Guess[]
+  challenge Challenge?
 
   @@index([roomId])
   @@index([status])
   @@index([activeTurnRoomPlayerId])
   @@map("games")
+}
+
+/// One-time host-created duel: fixed catalog card + seed; single linked {@link Game} for the challenged player.
+model Challenge {
+  id               String            @id @default(uuid()) @db.Uuid
+  createdByUserId  String?           @map("created_by_user_id") @db.Uuid
+  createdByGuestId String?           @map("created_by_guest_id")
+  cardId           String            @map("card_id")
+  cardName         String            @map("card_name")
+  cardSet          String            @map("card_set")
+  cardImageUrl     String            @map("card_image_url")
+  revealSeed       String            @map("reveal_seed")
+  revealCardKind   String            @map("reveal_card_kind")
+  cardTemplateKey  String            @map("card_template_key")
+  status           ChallengeStatus   @map("status")
+  outcome          ChallengeOutcome? @map("outcome")
+  gameId           String?           @unique @map("game_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt        DateTime?         @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?         @map("completed_at") @db.Timestamptz(6)
+  attemptsUsed     Int?              @map("attempts_used")
+  timeMs           Int?              @map("time_ms")
+  finalGuess       String?           @map("final_guess")
+
+  createdBy User? @relation("ChallengeCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  game      Game? @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@index([createdByUserId])
+  @@index([createdByGuestId])
+  @@index([status])
+  @@map("challenges")
 }
 
 /// Snapshot of a player for this game; links back to room player when from multiplayer.

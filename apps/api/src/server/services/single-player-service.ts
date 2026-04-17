@@ -1,4 +1,4 @@
-import { GameStatus, type Game } from "@/generated/prisma/client";
+import { GameMode, GameStatus, type Game } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeGuessText } from "@/lib/game/guess-normalize";
 import { resolveFabCardArtUrl } from "@/lib/card-art-url";
@@ -9,8 +9,14 @@ import {
   singlePlayerAttemptCounts,
 } from "@/lib/game/single-player-logic";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
+import {
+  DisplayNameResolutionError,
+  resolveGamePlayerDisplayNameForSession,
+} from "@/lib/game-player-display-name";
+import type { PlayerIdentity } from "@/lib/player-identity";
 import { mergeUserCardStatsAfterGame } from "@/server/repositories/stats-repository";
 import { recordRegisteredUserGameOutcome } from "@/server/services/stats-service";
+import { applyChallengeCompletionInTx } from "@/server/services/challenge-service";
 import { getRandomCard } from "@/server/services/card-catalog-service";
 
 export class SinglePlayerHttpError extends Error {
@@ -23,10 +29,7 @@ export class SinglePlayerHttpError extends Error {
   }
 }
 
-export type PlayerIdentity = {
-  guestId: string | null;
-  userId: string | null;
-};
+export type { PlayerIdentity } from "@/lib/player-identity";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,34 +60,17 @@ function matchesGamePlayer(
   return player.guestId === id.guestId;
 }
 
-/** DB `GamePlayer.displayName` — user/guest label + local date-time (no player prompt). */
 async function resolveSinglePlayerSessionDisplayName(
   identity: PlayerIdentity,
 ): Promise<string> {
-  const ts = new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date());
-
-  if (identity.userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: identity.userId },
-      select: { displayName: true },
-    });
-    if (!user) throw new SinglePlayerHttpError(400, "Unknown user id.");
-    const label = user.displayName.trim() || identity.userId;
-    return `${label} · ${ts}`;
+  try {
+    return await resolveGamePlayerDisplayNameForSession(identity);
+  } catch (e) {
+    if (e instanceof DisplayNameResolutionError) {
+      throw new SinglePlayerHttpError(e.status, e.message);
+    }
+    throw e;
   }
-
-  if (!identity.guestId) {
-    throw new SinglePlayerHttpError(400, "Missing player identity.");
-  }
-  const gid = identity.guestId;
-  const idPart = gid.length > 24 ? `${gid.slice(0, 10)}…` : gid;
-  return `${idPart} · ${ts}`;
 }
 
 export type SingleGameGuessLine = {
@@ -183,7 +169,7 @@ async function loadSingleGameForPlayer(gameId: string, identity: PlayerIdentity)
     },
   });
 
-  if (!game || game.mode !== "SINGLE") {
+  if (!game || (game.mode !== GameMode.SINGLE && game.mode !== GameMode.CHALLENGE)) {
     throw new SinglePlayerHttpError(404, "Game not found.");
   }
 
@@ -223,7 +209,10 @@ function buildSingleGamePublic(
 ): SingleGamePublic {
   const resolved = resolveGameCard(game);
   const totalSteps = resolved.totalSteps;
-  const terminal = game.status === GameStatus.WON || game.status === GameStatus.LOST;
+  const terminal =
+    game.status === GameStatus.WON ||
+    game.status === GameStatus.LOST ||
+    game.status === GameStatus.CANCELLED;
 
   const { used, remaining } = singlePlayerAttemptCounts(totalSteps, game.guesses.length);
 
@@ -264,7 +253,7 @@ export async function forfeitSinglePlayerGame(params: {
       include: { gamePlayers: true },
     });
 
-    if (!game || game.mode !== "SINGLE") {
+    if (!game || (game.mode !== GameMode.SINGLE && game.mode !== GameMode.CHALLENGE)) {
       throw new SinglePlayerHttpError(404, "Game not found.");
     }
     if (game.status !== GameStatus.IN_PROGRESS) {
@@ -276,10 +265,13 @@ export async function forfeitSinglePlayerGame(params: {
       throw new SinglePlayerHttpError(403, "This thread is not yours.");
     }
 
+    const terminalStatus =
+      game.mode === GameMode.CHALLENGE ? GameStatus.CANCELLED : GameStatus.LOST;
+
     await tx.game.update({
       where: { id: game.id },
       data: {
-        status: GameStatus.LOST,
+        status: terminalStatus,
         finishedAt: new Date(),
       },
     });
@@ -288,10 +280,12 @@ export async function forfeitSinglePlayerGame(params: {
       data: { didWin: false },
     });
 
-    return { player, cardId: game.cardId };
+    await applyChallengeCompletionInTx(tx, game.id);
+
+    return { player, cardId: game.cardId, terminalStatus };
   });
 
-  if (txResult.player.userId) {
+  if (txResult.player.userId && txResult.terminalStatus === GameStatus.LOST) {
     const guesses = await prisma.guess.findMany({
       where: { gameId: params.gameId },
       orderBy: { createdAt: "asc" },
@@ -339,7 +333,9 @@ export async function submitSinglePlayerGuess(params: {
       },
     });
 
-    if (!game || game.mode !== "SINGLE") throw new SinglePlayerHttpError(404, "Game not found.");
+    if (!game || (game.mode !== GameMode.SINGLE && game.mode !== GameMode.CHALLENGE)) {
+      throw new SinglePlayerHttpError(404, "Game not found.");
+    }
     if (game.status !== GameStatus.IN_PROGRESS) {
       throw new SinglePlayerHttpError(409, "This reading already ended.");
     }
@@ -408,6 +404,7 @@ export async function submitSinglePlayerGuess(params: {
           solvedTotalTimeMs: totalTimeMs,
         },
       });
+      await applyChallengeCompletionInTx(tx, game.id);
       return { status: GameStatus.WON, player, cardId: game.cardId };
     }
 
@@ -423,6 +420,7 @@ export async function submitSinglePlayerGuess(params: {
         where: { id: player.id },
         data: { didWin: false },
       });
+      await applyChallengeCompletionInTx(tx, game.id);
       return { status: GameStatus.LOST, player, cardId: game.cardId };
     }
 

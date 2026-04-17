@@ -2,7 +2,10 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { respondWithCatalogSets } from "@/server/respond-with-catalog-sets";
-import { searchPlayableCatalogCardNames } from "@/server/services/card-catalog-service";
+import {
+  getFirstCatalogCardIdByExactName,
+  searchPlayableCatalogCardNames,
+} from "@/server/services/card-catalog-service";
 import {
   forfeitSinglePlayerGame,
   parsePlayerIdentityFromHeaders,
@@ -29,6 +32,18 @@ export const singlePlayerRoutes = new Hono()
       }
       const names = searchPlayableCatalogCardNames(q, 20);
       return c.json({ names });
+    } catch (e) {
+      return handleErr(c, e);
+    }
+  })
+  .get("/cards/resolve", async (c) => {
+    try {
+      const name = c.req.query("name")?.trim() ?? "";
+      if (!name) {
+        return c.json({ cardId: null as string | null });
+      }
+      const cardId = getFirstCatalogCardIdByExactName(name);
+      return c.json({ cardId });
     } catch (e) {
       return handleErr(c, e);
     }

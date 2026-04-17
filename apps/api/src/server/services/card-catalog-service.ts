@@ -212,6 +212,24 @@ export function getAllSets(): string[] {
   );
 }
 
+/** Resolve a playable catalog printing by stable {@link CatalogCard.id}, or null. */
+export function getCatalogCardById(id: string): CatalogCard | null {
+  if (!catalogReady) return null;
+  return cardById.get(id) ?? null;
+}
+
+/** First playable printing whose name matches exactly (case-insensitive), or null. */
+export function getFirstCatalogCardIdByExactName(name: string): string | null {
+  if (!catalogReady) return null;
+  const t = name.trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  for (const c of allCards) {
+    if (c.name.trim().toLowerCase() === lower) return c.id;
+  }
+  return null;
+}
+
 /**
  * Substring match (case-insensitive) on **playable** catalog card names only
  * (tokens, promos, marvel, gold/cold foil printings excluded — same universe as {@link getRandomCard}).

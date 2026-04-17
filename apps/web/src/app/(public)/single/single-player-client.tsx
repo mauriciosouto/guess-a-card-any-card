@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { GameHistoryPanel, type HistoryEntry } from "@/components/game/GameHistoryPanel";
 import { GuessCardAutocomplete } from "@/components/game/GuessCardAutocomplete";
@@ -10,7 +11,10 @@ import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { SinglePlayerProgressHUD } from "@/components/game/SinglePlayerProgressHUD";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { useSinglePlayerFabSets, useSinglePlayerSession } from "@/hooks/use-single-player-game";
+import {
+  useSinglePlayerFabSets,
+  useSinglePlayerSession,
+} from "@/hooks/use-single-player-game";
 import type { SingleGameSnapshot } from "@/types/single-game";
 import { cn } from "@/lib/utils/cn";
 
@@ -49,9 +53,76 @@ function useGuessFeedback(game: SingleGameSnapshot | null, phase: string) {
   return wrongFeedback;
 }
 
-export function SinglePlayerClient() {
+type SinglePlayerLobbyProps = {
+  error: string | null;
+  busy: boolean;
+  asyncFeedback: string | null;
+  start: (selectedFabSets: string[]) => void | Promise<void>;
+};
+
+/** FAB `/sets` fetch only runs when the solitary-reading lobby is shown (not for challenge bootstrap). */
+function SinglePlayerLobby({ error, busy, asyncFeedback, start }: SinglePlayerLobbyProps) {
   const { sets, setsLoading } = useSinglePlayerFabSets();
   const [selectedFabSets, setSelectedFabSets] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="space-y-6">
+      {error ? (
+        <p className="rounded-lg border border-[var(--blood)]/35 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)]">
+          {error}
+        </p>
+      ) : null}
+      <Panel variant="textured" className="border-[var(--gold)]/15 p-5 sm:p-6">
+        <p className="text-sm leading-relaxed text-[var(--parchment-dim)]">
+          Mark optional <strong className="text-[var(--parchment)]">sigils</strong> to thin which omens may
+          rise from the archive, or leave them untouched and let any ready veil answer your summons.
+        </p>
+        <p className="mt-6 font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
+          Optional sigils
+        </p>
+        <div className="mt-3">
+          <SetMultiSelect
+            options={sets}
+            value={selectedFabSets}
+            onChange={setSelectedFabSets}
+            disabled={busy}
+            loading={setsLoading}
+          />
+        </div>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button
+            onClick={() => void start([...selectedFabSets])}
+            disabled={busy || setsLoading}
+          >
+            Start
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/">Home</Link>
+          </Button>
+        </div>
+        <PendingRitualNote show={busy && Boolean(asyncFeedback)} label={asyncFeedback ?? ""} />
+      </Panel>
+    </div>
+  );
+}
+
+export type SinglePlayerClientProps = {
+  /** Skip lobby; load this game (e.g. challenge). */
+  initialGameId?: string | null;
+  /** Replace default done-screen actions (Play again / Home). */
+  doneActions?: ReactNode;
+  /** Override forfeit `window.confirm` (defaults to challenge copy when `initialGameId` is set). */
+  forfeitConfirmMessage?: string;
+};
+
+const CHALLENGE_FORFEIT_CONFIRM =
+  "This ends the challenge as abandoned. Continue?";
+
+export function SinglePlayerClient({
+  initialGameId = null,
+  doneActions,
+  forfeitConfirmMessage,
+}: SinglePlayerClientProps = {}) {
   const {
     phase,
     game,
@@ -64,7 +135,16 @@ export function SinglePlayerClient() {
     submitGuess,
     forfeit,
     reset,
-  } = useSinglePlayerSession();
+  } = useSinglePlayerSession(
+    initialGameId || forfeitConfirmMessage
+      ? {
+          initialGameId: initialGameId ?? undefined,
+          forfeitConfirmMessage:
+            forfeitConfirmMessage ??
+            (initialGameId ? CHALLENGE_FORFEIT_CONFIRM : undefined),
+        }
+      : undefined,
+  );
 
   const wrongFeedback = useGuessFeedback(game, phase);
   const [triumphActive, setTriumphActive] = useState(false);
@@ -96,50 +176,20 @@ export function SinglePlayerClient() {
 
   const totalSteps = game ? Math.max(1, game.totalSteps) : 1;
 
-  if (phase === "setup") {
+  if (!initialGameId && phase === "setup") {
     return (
-      <div className="space-y-6">
-        {error ? (
-          <p className="rounded-lg border border-[var(--blood)]/35 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)]">
-            {error}
-          </p>
-        ) : null}
-        <Panel variant="textured" className="border-[var(--gold)]/15 p-5 sm:p-6">
-          <p className="text-sm leading-relaxed text-[var(--parchment-dim)]">
-            Mark optional <strong className="text-[var(--parchment)]">sigils</strong> to thin which omens may
-            rise from the archive, or leave them untouched and let any ready veil answer your summons.
-          </p>
-          <p className="mt-6 font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
-            Optional sigils
-          </p>
-          <div className="mt-3">
-            <SetMultiSelect
-              options={sets}
-              value={selectedFabSets}
-              onChange={setSelectedFabSets}
-              disabled={busy}
-              loading={setsLoading}
-            />
-          </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button
-              onClick={() => void start([...selectedFabSets])}
-              disabled={busy || setsLoading}
-            >
-              Start
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/">Home</Link>
-            </Button>
-          </div>
-          <PendingRitualNote show={busy && Boolean(asyncFeedback)} label={asyncFeedback ?? ""} />
-        </Panel>
-      </div>
+      <SinglePlayerLobby
+        error={error}
+        busy={busy}
+        asyncFeedback={asyncFeedback}
+        start={start}
+      />
     );
   }
 
   if (phase === "done" && game) {
     const won = game.status === "WON";
+    const abandoned = game.status === "CANCELLED";
     const cardReveal = (
       <div
         className={cn(
@@ -178,7 +228,7 @@ export function SinglePlayerClient() {
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
             <div className="min-w-0 flex-1 text-center lg:text-left">
               <p className="font-display text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-[var(--gold-dim)]">
-                {won ? "Omen resolved" : "Reading ended"}
+                {won ? "Omen resolved" : abandoned ? "Reading yielded" : "Reading ended"}
               </p>
 
               {won ? (
@@ -190,6 +240,15 @@ export function SinglePlayerClient() {
                 >
                   <p className="font-display text-2xl font-semibold leading-snug tracking-[0.12em] text-emerald-100 sm:text-3xl">
                     The veil opens
+                  </p>
+                </div>
+              ) : abandoned ? (
+                <div className="mt-6 space-y-2 rounded-xl border border-[var(--blood)]/35 bg-[var(--blood)]/08 px-4 py-6">
+                  <p className="font-display text-xl font-semibold tracking-[0.14em] text-[var(--gold-bright)] sm:text-2xl">
+                    The veil was cut short
+                  </p>
+                  <p className="text-sm text-[var(--parchment-dim)]">
+                    You yielded before the omen was answered — the true name remains in the log below.
                   </p>
                 </div>
               ) : (
@@ -239,10 +298,14 @@ export function SinglePlayerClient() {
               </div>
 
               <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
-                <Button onClick={reset}>Play again</Button>
-                <Button variant="outline" asChild>
-                  <Link href="/">Home</Link>
-                </Button>
+                {doneActions ?? (
+                  <>
+                    <Button onClick={reset}>Play again</Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/">Home</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -263,6 +326,13 @@ export function SinglePlayerClient() {
   }
 
   if (!game) {
+    if (error) {
+      return (
+        <p className="rounded-lg border border-[var(--blood)]/35 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)]">
+          {error}
+        </p>
+      );
+    }
     return <p className="text-center text-sm text-[var(--parchment-dim)]">Summoning the card…</p>;
   }
 
