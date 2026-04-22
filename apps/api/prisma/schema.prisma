@@ -1,6 +1,6 @@
-// Guess a Card, Any Card — game app schema (shared Supabase Postgres with admin).
-// This repo owns Prisma migrations for that DB; admin mirrors. See docs/database.md.
-// Prisma 7: connection URL is in root `prisma.config.ts`, not in `datasource` below.
+// Guess a Card, Any Card — game app schema. This repo owns the database exclusively.
+// The admin app is retired; all schema changes go through Prisma migrations here.
+// Prisma 7: connection URL is in `prisma.config.ts`, not in `datasource` below.
 // Prompt 2 (BLUEPRINT_PRO.md §28.2): entities, enums, indexes, guest-friendly nullables.
 // See docs/BLUEPRINT_PRO.md §12–13. Align `User.id` with Supabase `auth.users.id` when OAuth is wired.
 //
@@ -53,6 +53,7 @@ enum ChallengeStatus {
   PENDING
   IN_PROGRESS
   COMPLETED
+  CANCELLED
 }
 
 enum ChallengeOutcome {
@@ -172,6 +173,8 @@ model Game {
   createdAt                 DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   /// When the current competitive step round ends (server clock). Null outside COMPETITIVE in progress.
   competitiveStepDeadlineAt DateTime?  @map("competitive_step_deadline_at") @db.Timestamptz(6)
+  /// Set once when registered-user stats aggregates have been applied for this terminal game (idempotency).
+  statsAggregatedAt         DateTime?  @map("stats_aggregated_at") @db.Timestamptz(6)
 
   room                 Room?        @relation("RoomGames", fields: [roomId], references: [id], onDelete: SetNull)
   roomCurrent          Room?        @relation("RoomCurrentGame")
@@ -277,6 +280,7 @@ model UserStat {
   averageAttemptsToWin Decimal? @map("average_attempts_to_win") @db.Decimal(6, 2)
   bestAttemptsRecord   Int?     @map("best_attempts_record")
   bestTimeRecordMs     Int?     @map("best_time_record_ms")
+  lastPlayedAt         DateTime? @map("last_played_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

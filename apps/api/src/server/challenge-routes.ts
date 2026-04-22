@@ -1,17 +1,22 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { RequestIdentityError } from "@/server/auth/request-identity-error";
+import { resolvePlayerIdentityForGameRequest } from "@/server/auth/resolve-actor";
 import {
   ChallengeHttpError,
+  cancelChallengeByHost,
   createChallenge,
   getChallengePublic,
   getChallengeResult,
   startChallenge,
 } from "@/server/services/challenge-service";
-import { parsePlayerIdentityFromHeaders } from "@/server/services/single-player-service";
 
 function handleErr(c: Context, e: unknown) {
   if (e instanceof ChallengeHttpError) {
+    return c.json({ error: e.message }, e.status as ContentfulStatusCode);
+  }
+  if (e instanceof RequestIdentityError) {
     return c.json({ error: e.message }, e.status as ContentfulStatusCode);
   }
   throw e;
@@ -20,7 +25,7 @@ function handleErr(c: Context, e: unknown) {
 export const challengeRoutes = new Hono()
   .post("/", async (c) => {
     try {
-      const hostIdentity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const hostIdentity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const body = (await c.req.json().catch(() => ({}))) as { cardId?: string };
       const cardId = typeof body.cardId === "string" ? body.cardId.trim() : "";
       if (!cardId) {
@@ -43,7 +48,7 @@ export const challengeRoutes = new Hono()
   })
   .post("/:id/start", async (c) => {
     try {
-      const playerIdentity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const playerIdentity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const challengeId = c.req.param("id");
       const out = await startChallenge({ challengeId, playerIdentity });
       return c.json(out, 201);
@@ -51,9 +56,19 @@ export const challengeRoutes = new Hono()
       return handleErr(c, e);
     }
   })
+  .post("/:id/cancel", async (c) => {
+    try {
+      const hostIdentity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
+      const challengeId = c.req.param("id");
+      await cancelChallengeByHost({ challengeId, hostIdentity });
+      return c.body(null, 204);
+    } catch (e) {
+      return handleErr(c, e);
+    }
+  })
   .get("/:id/result", async (c) => {
     try {
-      const hostIdentity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const hostIdentity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const challengeId = c.req.param("id");
       const out = await getChallengeResult({ challengeId, hostIdentity });
       return c.json(out);

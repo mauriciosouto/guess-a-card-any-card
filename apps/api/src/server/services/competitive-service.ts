@@ -10,11 +10,12 @@ import {
   assignCompetitiveRanks,
   resolveCompetitiveGuessOnStep,
 } from "@/lib/game/competitive-logic";
-import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { resolveCatalogCardArtUrl } from "@/lib/card-art-url";
 import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
 import { newRevealSeed, resolveGameCard, type GameForCardResolution } from "@/lib/game-card-resolution";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 import { getRandomCard } from "@/server/services/card-catalog-service";
+import { applyRegisteredUserStatsForTerminalGameInTx } from "@/server/services/terminal-game-stats-service";
 
 export class CompetitiveHttpError extends Error {
   constructor(
@@ -139,6 +140,8 @@ async function finishCompetitiveGame(
     where: { id: roomId },
     data: { state: RoomState.FINISHED },
   });
+
+  await applyRegisteredUserStatsForTerminalGameInTx(tx, gameId);
 }
 
 /**
@@ -413,7 +416,7 @@ export async function startCompetitiveGame(params: {
     );
   }
   const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
-  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
+  const cardImageUrl = resolveCatalogCardArtUrl(catalogCard.imageUrl, catalogCard.printing);
 
   const deadline = new Date(Date.now() + timerSec * 1000);
 

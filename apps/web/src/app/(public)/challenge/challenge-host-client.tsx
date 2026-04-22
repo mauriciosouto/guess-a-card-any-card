@@ -22,20 +22,6 @@ function playUrl(challengeId: string): string {
   return `${window.location.origin}/challenge/${challengeId}`;
 }
 
-function statusLabel(s: ChallengeStatus | null): string {
-  if (!s) return "…";
-  switch (s) {
-    case "PENDING":
-      return "Not started";
-    case "IN_PROGRESS":
-      return "In progress";
-    case "COMPLETED":
-      return "Finished";
-    default:
-      return s;
-  }
-}
-
 function outcomeLabel(o: ChallengeOutcome): string {
   switch (o) {
     case "WON":
@@ -83,6 +69,8 @@ async function fetchChallengeResultWithRetries(
 export function ChallengeHostClient() {
   const [pickText, setPickText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [status, setStatus] = useState<ChallengeStatus | null>(null);
@@ -104,7 +92,10 @@ export function ChallengeHostClient() {
       const j = (await pub.json()) as ChallengePublicDto;
       setStatus(j.status);
       setPublicDto(j);
-      if (j.status === "COMPLETED" && pollIntervalRef.current != null) {
+      if (
+        (j.status === "COMPLETED" || j.status === "CANCELLED") &&
+        pollIntervalRef.current != null
+      ) {
         window.clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
@@ -163,6 +154,36 @@ export function ChallengeHostClient() {
       setHistoryLoading(false);
     };
   }, [challengeId, publicDto?.status, historyRetryToken]);
+
+  function resetHostFlow() {
+    setChallengeId(null);
+    setStatus(null);
+    setPublicDto(null);
+    setResult(null);
+    setHistoryFailed(false);
+    setHistoryLoading(false);
+    setPickText("");
+    setError(null);
+    setCancelConfirmOpen(false);
+  }
+
+  async function cancelPendingChallenge() {
+    if (!challengeId) return;
+    setError(null);
+    setCancelBusy(true);
+    try {
+      const res = await challengeFetch(`/${challengeId}/cancel`, { method: "POST" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `Could not cancel (${res.status})`);
+      }
+      resetHostFlow();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not cancel");
+    } finally {
+      setCancelBusy(false);
+    }
+  }
 
   async function createChallenge() {
     setError(null);
@@ -278,21 +299,10 @@ export function ChallengeHostClient() {
           <p className="font-display text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-[var(--gold-dim)]">
             Your challenge
           </p>
-          <p className="mt-2 font-mono text-sm text-[var(--parchment)]">
-            <span className="text-[var(--mist)]">Id</span> {challengeId}
+          <p className="mt-3 text-sm leading-relaxed text-[var(--parchment-dim)]">
+            Send the reading link to the other player — copy it or open it in a new tab.
           </p>
-          <p className="mt-2 text-sm text-[var(--parchment-dim)]">
-            Status:{" "}
-            <strong className="text-[var(--parchment)]">{statusLabel(status)}</strong>
-          </p>
-
-          <p className="mt-6 font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
-            Link for the challenged player
-          </p>
-          <p className="mt-2 break-all rounded-lg border border-[var(--gold)]/12 bg-[var(--void)]/40 px-3 py-2 font-mono text-xs text-[var(--gold-dim)]">
-            {url}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button type="button" variant="outline" size="sm" onClick={() => void copyLink()}>
               {linkCopied ? "Copied" : "Copy link"}
             </Button>
@@ -304,6 +314,49 @@ export function ChallengeHostClient() {
             Same device? Use the button so a fresh tab gets its own guest session — otherwise the host and
             player would share one identity.
           </p>
+
+          {status === "PENDING" ? (
+            <div className="mt-6 border-t border-[var(--gold)]/12 pt-6">
+              {cancelConfirmOpen ? (
+                <div className="rounded-lg border border-[var(--blood)]/30 bg-[var(--blood)]/08 px-4 py-4">
+                  <p className="text-sm leading-relaxed text-[var(--parchment-dim)]">
+                    Cancel this challenge? The play link will stop working and nobody will be able to begin
+                    the reading.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={cancelBusy}
+                      onClick={() => setCancelConfirmOpen(false)}
+                    >
+                      Keep challenge
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="border-[var(--blood)]/40 bg-[var(--blood)]/15 text-[var(--gold-bright)] hover:bg-[var(--blood)]/25"
+                      disabled={cancelBusy}
+                      onClick={() => void cancelPendingChallenge()}
+                    >
+                      {cancelBusy ? "Cancelling…" : "Yes, cancel challenge"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-[var(--mist)] hover:bg-[var(--blood)]/10 hover:text-[var(--gold-bright)]"
+                  onClick={() => setCancelConfirmOpen(true)}
+                >
+                  Cancel this challenge
+                </Button>
+              )}
+            </div>
+          ) : null}
         </Panel>
       ) : null}
 
@@ -389,20 +442,7 @@ export function ChallengeHostClient() {
           <Link href="/">Home</Link>
         </Button>
         {challengeId ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setChallengeId(null);
-              setStatus(null);
-              setPublicDto(null);
-              setResult(null);
-              setHistoryFailed(false);
-              setHistoryLoading(false);
-              setPickText("");
-              setError(null);
-            }}
-          >
+          <Button type="button" variant="outline" onClick={() => resetHostFlow()}>
             Create another
           </Button>
         ) : null}

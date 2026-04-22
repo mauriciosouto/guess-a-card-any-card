@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GameLogo } from "@/components/brand/game-logo";
+import { SiteHeaderAuth } from "@/components/auth/site-header-auth";
 import { cn } from "@/lib/utils/cn";
 
 const mainModes = [
@@ -11,6 +12,7 @@ const mainModes = [
 
 const accountLinks = [
   { href: "/stats", label: "Stats" },
+  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/profile", label: "Profile" },
 ] as const;
 
@@ -59,17 +61,7 @@ export function SiteHeader() {
               {label}
             </Link>
           ))}
-          <Link
-            href="/profile"
-            className={cn(
-              "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-[var(--gold)]/45 bg-[var(--plum-mid)]/80 text-xs font-semibold uppercase text-[var(--gold-bright)] shadow-[0_0_16px_rgba(201,162,39,0.2)] transition-[box-shadow,transform,border-color] duration-300 hover:scale-[1.03] hover:border-[var(--gold-bright)]/65 hover:shadow-[0_0_24px_rgba(201,162,39,0.35)]",
-            )}
-            aria-label="Open profile"
-          >
-            <span className="select-none" aria-hidden>
-              ★
-            </span>
-          </Link>
+          <SiteHeaderAuth />
         </div>
       </div>
     </header>

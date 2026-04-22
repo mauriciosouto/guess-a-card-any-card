@@ -9,6 +9,7 @@ import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
 import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { SinglePlayerProgressHUD } from "@/components/game/SinglePlayerProgressHUD";
+import { ShareGameResultButton } from "@/components/share/share-game-result-button";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -297,7 +298,11 @@ export function SinglePlayerClient({
                 </p>
               </div>
 
-              <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
+              <div className="flex flex-wrap items-start justify-center gap-3 lg:justify-start">
+                <ShareGameResultButton
+                  game={game}
+                  mode={initialGameId ? "Challenge" : "Single"}
+                />
                 {doneActions ?? (
                   <>
                     <Button onClick={reset}>Play again</Button>

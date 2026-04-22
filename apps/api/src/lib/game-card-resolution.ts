@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 
 import type { Game } from "@/generated/prisma/client";
+import { resolveCatalogCardArtUrl } from "@/lib/card-art-url";
 import { gameRevealTotalSteps } from "@/lib/reveal-profile";
+import { getCatalogCardById } from "@/server/services/card-catalog-service";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 
 export function newRevealSeed(): string {
@@ -24,9 +26,13 @@ export type GameForCardResolution = Game;
 export function resolveGameCard(game: GameForCardResolution): GameCardResolution {
   const revealCardKind = game.revealCardKind as CardZoneValidityKind;
   const cardTemplateKey = game.cardTemplateKey as CardTemplateKey;
+  const catalog = getCatalogCardById(game.cardId);
+  const cardImageUrl = catalog
+    ? resolveCatalogCardArtUrl(catalog.imageUrl, catalog.printing)
+    : game.cardImageUrl;
   return {
     cardName: game.cardName,
-    cardImageUrl: game.cardImageUrl,
+    cardImageUrl,
     seed: game.revealSeed,
     revealCardKind,
     cardTemplateKey,

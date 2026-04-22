@@ -1,13 +1,14 @@
 import { GameStatus, RoomState } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { guessesAreEqual, normalizeGuessText } from "@/lib/game/guess-normalize";
-import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { resolveCatalogCardArtUrl } from "@/lib/card-art-url";
 import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
 import { newRevealSeed, resolveGameCard, type GameForCardResolution } from "@/lib/game-card-resolution";
 import { nextActiveRoomPlayerId, shuffleRoomPlayerIds } from "@/server/engines/coop-engine";
 import type { CardTemplateKey, CardZoneValidityKind } from "@gac/shared/reveal";
 import { notifyCoopRoom } from "@/server/realtime/coop-notify";
 import { getRandomCard } from "@/server/services/card-catalog-service";
+import { applyRegisteredUserStatsForTerminalGameInTx } from "@/server/services/terminal-game-stats-service";
 
 export class CoopHttpError extends Error {
   constructor(
@@ -213,7 +214,7 @@ export async function startCoopGame(params: {
     );
   }
   const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
-  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
+  const cardImageUrl = resolveCatalogCardArtUrl(catalogCard.imageUrl, catalogCard.printing);
 
   const shuffled = shuffleRoomPlayerIds(room.roomPlayers.map((p) => p.id));
   const firstActiveId = shuffled[0]!;
@@ -495,6 +496,8 @@ export async function submitCoopGuess(params: {
         data: { state: RoomState.FINISHED },
       });
 
+      await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
+
       return {
         correct: true,
         status: GameStatus.WON,
@@ -510,10 +513,15 @@ export async function submitCoopGuess(params: {
           finishedAt: new Date(),
         },
       });
+      await tx.gamePlayer.updateMany({
+        where: { gameId: game.id },
+        data: { didWin: false },
+      });
       await tx.room.update({
         where: { id: game.roomId! },
         data: { state: RoomState.FINISHED },
       });
+      await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
       return {
         correct: false,
         status: GameStatus.LOST,
@@ -596,6 +604,11 @@ export async function leaveCoopRoom(params: { roomId: string; guestId: string })
           where: { id: room.currentGameId },
           data: { status: GameStatus.CANCELLED, finishedAt: now },
         });
+        await tx.gamePlayer.updateMany({
+          where: { gameId: room.currentGameId },
+          data: { didWin: false },
+        });
+        await applyRegisteredUserStatsForTerminalGameInTx(tx, room.currentGameId);
       }
       return;
     }
@@ -612,10 +625,15 @@ export async function leaveCoopRoom(params: { roomId: string; guestId: string })
         where: { id: game.id },
         data: { status: GameStatus.CANCELLED, finishedAt: now },
       });
+      await tx.gamePlayer.updateMany({
+        where: { gameId: game.id },
+        data: { didWin: false },
+      });
       await tx.room.update({
         where: { id: room.id },
         data: { state: RoomState.FINISHED },
       });
+      await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
       return;
     }
 
@@ -656,10 +674,15 @@ export async function hostEndCoopGame(params: { roomId: string; hostGuestId: str
       where: { id: g.id },
       data: { status: GameStatus.CANCELLED, finishedAt: now },
     });
+    await tx.gamePlayer.updateMany({
+      where: { gameId: g.id },
+      data: { didWin: false },
+    });
     await tx.room.update({
       where: { id: params.roomId },
       data: { state: RoomState.FINISHED },
     });
+    await applyRegisteredUserStatsForTerminalGameInTx(tx, g.id);
   });
 
   notifyCoopRoom(params.roomId);

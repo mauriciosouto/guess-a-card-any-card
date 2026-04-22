@@ -47,10 +47,11 @@ export function ChallengePlayClient({ challengeId }: { challengeId: string }) {
   useEffect(() => {
     if (!storageReady) return;
     if (gameId) return;
+    if (status === "CANCELLED" || status === "COMPLETED") return;
     void fetchPublic();
     const t = window.setInterval(() => void fetchPublic(), PUBLIC_POLL_MS);
     return () => window.clearInterval(t);
-  }, [storageReady, gameId, fetchPublic]);
+  }, [storageReady, gameId, status, fetchPublic]);
 
   async function start() {
     setStartError(null);
@@ -106,6 +107,23 @@ export function ChallengePlayClient({ challengeId }: { challengeId: string }) {
           saved session — ask the host for the result, or use a new challenge link.
         </p>
         <Button className="mt-4" variant="outline" asChild>
+          <Link href="/">Home</Link>
+        </Button>
+      </Panel>
+    );
+  }
+
+  if (status === "CANCELLED") {
+    return (
+      <Panel variant="textured" className="border-[var(--gold)]/15 p-6 text-center">
+        <p className="font-display text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-[var(--gold-dim)]">
+          Challenge withdrawn
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-[var(--parchment-dim)]">
+          The host cancelled this challenge before it began. Ask them for a new link if you still want to
+          play.
+        </p>
+        <Button className="mt-6" variant="outline" asChild>
           <Link href="/">Home</Link>
         </Button>
       </Panel>

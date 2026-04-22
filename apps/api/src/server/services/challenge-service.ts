@@ -10,11 +10,16 @@ import {
   resolveGamePlayerDisplayNameForSession,
 } from "@/lib/game-player-display-name";
 import { prisma } from "@/lib/prisma";
-import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { resolveCatalogCardArtUrl } from "@/lib/card-art-url";
 import { newRevealSeed } from "@/lib/game-card-resolution";
 import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
 import { getCatalogCardById } from "@/server/services/card-catalog-service";
 import type { PlayerIdentity } from "@/lib/player-identity";
+import {
+  challengeHostOwnershipFromIdentity,
+  gamePlayerOwnershipFromIdentity,
+  PlayerIdentityPersistenceError,
+} from "@/lib/player-identity-persistence";
 
 export class ChallengeHttpError extends Error {
   constructor(
@@ -55,7 +60,13 @@ export async function applyChallengeCompletionInTx(
   const challenge = await tx.challenge.findUnique({
     where: { gameId: game.id },
   });
-  if (!challenge || challenge.status === ChallengeStatus.COMPLETED) return;
+  if (
+    !challenge ||
+    challenge.status === ChallengeStatus.COMPLETED ||
+    challenge.status === ChallengeStatus.CANCELLED
+  ) {
+    return;
+  }
 
   const guesses = await tx.guess.findMany({
     where: { gameId: game.id },
@@ -87,13 +98,26 @@ export async function createChallenge(params: {
   cardId: string;
   hostIdentity: PlayerIdentity;
 }): Promise<{ challengeId: string }> {
+  let hostOwnership: {
+    createdByUserId: string | null;
+    createdByGuestId: string | null;
+  };
+  try {
+    hostOwnership = challengeHostOwnershipFromIdentity(params.hostIdentity);
+  } catch (e) {
+    if (e instanceof PlayerIdentityPersistenceError) {
+      throw new ChallengeHttpError(e.status, e.message);
+    }
+    throw e;
+  }
+
   const catalogCard = getCatalogCardById(params.cardId.trim());
   if (!catalogCard) {
     throw new ChallengeHttpError(400, "Unknown or unplayable card id.");
   }
 
   const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
-  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
+  const cardImageUrl = resolveCatalogCardArtUrl(catalogCard.imageUrl, catalogCard.printing);
   const revealSeed = newRevealSeed();
 
   const row = await prisma.challenge.create({
@@ -112,6 +136,31 @@ export async function createChallenge(params: {
   });
 
   return { challengeId: row.id };
+}
+
+export async function cancelChallengeByHost(params: {
+  challengeId: string;
+  hostIdentity: PlayerIdentity;
+}): Promise<void> {
+  const id = params.challengeId.trim();
+  const challenge = await prisma.challenge.findUnique({ where: { id } });
+  if (!challenge) throw new ChallengeHttpError(404, "Challenge not found.");
+  if (!matchesChallengeHost(challenge, params.hostIdentity)) {
+    throw new ChallengeHttpError(403, "Only the host may cancel this challenge.");
+  }
+  if (challenge.status === ChallengeStatus.CANCELLED) {
+    return;
+  }
+  if (challenge.status !== ChallengeStatus.PENDING || challenge.gameId != null) {
+    throw new ChallengeHttpError(
+      409,
+      "Only a challenge that no one has begun can be cancelled.",
+    );
+  }
+  await prisma.challenge.update({
+    where: { id: challenge.id },
+    data: { status: ChallengeStatus.CANCELLED },
+  });
 }
 
 export type ChallengePublicSafe = {
@@ -151,6 +200,16 @@ export async function startChallenge(params: {
   challengeId: string;
   playerIdentity: PlayerIdentity;
 }): Promise<{ gameId: string }> {
+  let playerOwnership: { userId: string | null; guestId: string | null };
+  try {
+    playerOwnership = gamePlayerOwnershipFromIdentity(params.playerIdentity);
+  } catch (e) {
+    if (e instanceof PlayerIdentityPersistenceError) {
+      throw new ChallengeHttpError(e.status, e.message);
+    }
+    throw e;
+  }
+
   let displayName: string;
   try {
     displayName = await resolveGamePlayerDisplayNameForSession(params.playerIdentity);
@@ -166,6 +225,9 @@ export async function startChallenge(params: {
       where: { id: params.challengeId },
     });
     if (!challenge) throw new ChallengeHttpError(404, "Challenge not found.");
+    if (challenge.status === ChallengeStatus.CANCELLED) {
+      throw new ChallengeHttpError(409, "This challenge was cancelled by the host.");
+    }
     if (challenge.status === ChallengeStatus.COMPLETED) {
       throw new ChallengeHttpError(409, "This challenge is already finished.");
     }
@@ -192,8 +254,8 @@ export async function startChallenge(params: {
     await tx.gamePlayer.create({
       data: {
         gameId: game.id,
-        userId: params.playerIdentity.userId,
-        guestId: params.playerIdentity.userId ? null : params.playerIdentity.guestId,
+        userId: playerOwnership.userId,
+        guestId: playerOwnership.guestId,
         displayName,
       },
     });
@@ -250,6 +312,9 @@ export async function getChallengeResult(params: {
   if (!challenge) throw new ChallengeHttpError(404, "Challenge not found.");
   if (!matchesChallengeHost(challenge, params.hostIdentity)) {
     throw new ChallengeHttpError(403, "Only the host may view this result.");
+  }
+  if (challenge.status === ChallengeStatus.CANCELLED) {
+    throw new ChallengeHttpError(409, "This challenge was cancelled before it finished.");
   }
   if (challenge.status !== ChallengeStatus.COMPLETED || !challenge.outcome) {
     throw new ChallengeHttpError(409, "Challenge is not finished yet.");

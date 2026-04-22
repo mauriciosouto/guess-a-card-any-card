@@ -1,6 +1,5 @@
 /**
- * Geometry derived only from `apps/web/src/config/cardTemplates.ts`.
- * Do not duplicate coordinates here — read zones from the static templates.
+ * Geometry from `packages/shared/src/config/cardTemplates.ts` (data: `reveal-engine-zones.json`).
  */
 
 import {

@@ -1,7 +1,7 @@
 import { GameMode, GameStatus, type Game } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeGuessText } from "@/lib/game/guess-normalize";
-import { resolveFabCardArtUrl } from "@/lib/card-art-url";
+import { resolveCatalogCardArtUrl } from "@/lib/card-art-url";
 import { revealProfileFromFabCard } from "@/lib/fab-reveal-profile";
 import { newRevealSeed, resolveGameCard } from "@/lib/game-card-resolution";
 import {
@@ -14,9 +14,12 @@ import {
   resolveGamePlayerDisplayNameForSession,
 } from "@/lib/game-player-display-name";
 import type { PlayerIdentity } from "@/lib/player-identity";
-import { mergeUserCardStatsAfterGame } from "@/server/repositories/stats-repository";
-import { recordRegisteredUserGameOutcome } from "@/server/services/stats-service";
+import {
+  gamePlayerOwnershipFromIdentity,
+  PlayerIdentityPersistenceError,
+} from "@/lib/player-identity-persistence";
 import { applyChallengeCompletionInTx } from "@/server/services/challenge-service";
+import { applyRegisteredUserStatsForTerminalGameInTx } from "@/server/services/terminal-game-stats-service";
 import { getRandomCard } from "@/server/services/card-catalog-service";
 
 export class SinglePlayerHttpError extends Error {
@@ -30,27 +33,6 @@ export class SinglePlayerHttpError extends Error {
 }
 
 export type { PlayerIdentity } from "@/lib/player-identity";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function parsePlayerIdentityFromHeaders(headers: {
-  get(name: string): string | null;
-}): PlayerIdentity {
-  const rawUser = headers.get("x-user-id")?.trim() ?? null;
-  const rawGuest = headers.get("x-guest-id")?.trim() ?? null;
-
-  if (rawUser && UUID_RE.test(rawUser)) {
-    return { userId: rawUser, guestId: null };
-  }
-  if (rawGuest) {
-    return { guestId: rawGuest, userId: null };
-  }
-  throw new SinglePlayerHttpError(
-    400,
-    "Provide X-User-Id (registered) or X-Guest-Id (guest).",
-  );
-}
 
 function matchesGamePlayer(
   player: { guestId: string | null; userId: string | null },
@@ -109,6 +91,16 @@ export async function startSinglePlayerGame(params: {
   selectedFabSets: string[];
   identity: PlayerIdentity;
 }): Promise<{ gameId: string; game: SingleGamePublic }> {
+  let ownership: { userId: string | null; guestId: string | null };
+  try {
+    ownership = gamePlayerOwnershipFromIdentity(params.identity);
+  } catch (e) {
+    if (e instanceof PlayerIdentityPersistenceError) {
+      throw new SinglePlayerHttpError(e.status, e.message);
+    }
+    throw e;
+  }
+
   const displayName = await resolveSinglePlayerSessionDisplayName(params.identity);
 
   const catalogCard = getRandomCard(params.selectedFabSets);
@@ -122,7 +114,7 @@ export async function startSinglePlayerGame(params: {
   }
 
   const { revealCardKind, cardTemplateKey } = revealProfileFromFabCard(catalogCard.fabCard);
-  const cardImageUrl = resolveFabCardArtUrl(catalogCard.imageUrl);
+  const cardImageUrl = resolveCatalogCardArtUrl(catalogCard.imageUrl, catalogCard.printing);
 
   const gameId = await prisma.$transaction(async (tx) => {
     const game = await tx.game.create({
@@ -144,8 +136,8 @@ export async function startSinglePlayerGame(params: {
     await tx.gamePlayer.create({
       data: {
         gameId: game.id,
-        userId: params.identity.userId,
-        guestId: params.identity.userId ? null : params.identity.guestId,
+        userId: ownership.userId,
+        guestId: ownership.guestId,
         displayName,
       },
     });
@@ -281,31 +273,10 @@ export async function forfeitSinglePlayerGame(params: {
     });
 
     await applyChallengeCompletionInTx(tx, game.id);
+    await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
 
     return { player, cardId: game.cardId, terminalStatus };
   });
-
-  if (txResult.player.userId && txResult.terminalStatus === GameStatus.LOST) {
-    const guesses = await prisma.guess.findMany({
-      where: { gameId: params.gameId },
-      orderBy: { createdAt: "asc" },
-    });
-    const attempted = guesses.length;
-    const duration = guesses.reduce((s, g) => s + g.timeTakenMs, 0);
-
-    await recordRegisteredUserGameOutcome({
-      userId: txResult.player.userId,
-      won: false,
-    }).catch(() => {});
-
-    await mergeUserCardStatsAfterGame({
-      userId: txResult.player.userId,
-      cardId: txResult.cardId,
-      won: false,
-      attempts: attempted,
-      durationMs: duration,
-    }).catch(() => {});
-  }
 
   return getSinglePlayerGamePublic({
     gameId: params.gameId,
@@ -405,6 +376,7 @@ export async function submitSinglePlayerGuess(params: {
         },
       });
       await applyChallengeCompletionInTx(tx, game.id);
+      await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
       return { status: GameStatus.WON, player, cardId: game.cardId };
     }
 
@@ -421,6 +393,7 @@ export async function submitSinglePlayerGuess(params: {
         data: { didWin: false },
       });
       await applyChallengeCompletionInTx(tx, game.id);
+      await applyRegisteredUserStatsForTerminalGameInTx(tx, game.id);
       return { status: GameStatus.LOST, player, cardId: game.cardId };
     }
 
@@ -435,32 +408,6 @@ export async function submitSinglePlayerGuess(params: {
       cardId: game.cardId,
     };
   });
-
-  if (txResult.status === GameStatus.WON || txResult.status === GameStatus.LOST) {
-    if (txResult.player.userId) {
-      const guesses = await prisma.guess.findMany({
-        where: { gameId: params.gameId },
-        orderBy: { createdAt: "asc" },
-      });
-      const attempted = guesses.length;
-      const duration = guesses.reduce((s, g) => s + g.timeTakenMs, 0);
-
-      await recordRegisteredUserGameOutcome({
-        userId: txResult.player.userId,
-        won: txResult.status === GameStatus.WON,
-        attemptsToWin: txResult.status === GameStatus.WON ? attempted : undefined,
-        timeToWinMs: txResult.status === GameStatus.WON ? duration : undefined,
-      }).catch(() => {});
-
-      await mergeUserCardStatsAfterGame({
-        userId: txResult.player.userId,
-        cardId: txResult.cardId,
-        won: txResult.status === GameStatus.WON,
-        attempts: attempted,
-        durationMs: duration,
-      }).catch(() => {});
-    }
-  }
 
   return getSinglePlayerGamePublic({
     gameId: params.gameId,

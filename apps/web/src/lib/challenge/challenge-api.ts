@@ -1,10 +1,9 @@
 "use client";
 
-import { getOrCreateGuestId } from "@/lib/coop/guest-id";
+import { buildGameApiRequestHeaders } from "@/lib/auth/game-api-headers";
 
 export async function challengeFetch(path: string, init?: RequestInit): Promise<Response> {
-  const headers = new Headers(init?.headers);
-  headers.set("x-guest-id", getOrCreateGuestId());
+  const headers = await buildGameApiRequestHeaders(init?.headers);
   if (init?.body != null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

@@ -3,6 +3,9 @@ import { cors } from "hono/cors";
 import { challengeRoutes } from "@/server/challenge-routes";
 import { competitiveRoutes } from "@/server/competitive-routes";
 import { coopRoutes } from "@/server/coop-routes";
+import { leaderboardRoutes } from "@/server/leaderboard-routes";
+import { meRoutes } from "@/server/me-routes";
+import { profileRoutes } from "@/server/profile-routes";
 import { singlePlayerRoutes } from "@/server/single-player-routes";
 import { initCardCatalog } from "@/server/services/card-catalog-service";
 
@@ -27,6 +30,9 @@ app.get("/health", (c) =>
   c.json({ ok: true, service: "guess-a-card-any-card-api" }),
 );
 
+app.route("/me", meRoutes);
+app.route("/profile", profileRoutes);
+app.route("/leaderboard", leaderboardRoutes);
 app.route("/coop", coopRoutes);
 app.route("/competitive", competitiveRoutes);
 app.route("/challenges", challengeRoutes);

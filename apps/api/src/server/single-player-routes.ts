@@ -1,6 +1,8 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { RequestIdentityError } from "@/server/auth/request-identity-error";
+import { resolvePlayerIdentityForGameRequest } from "@/server/auth/resolve-actor";
 import { respondWithCatalogSets } from "@/server/respond-with-catalog-sets";
 import {
   getFirstCatalogCardIdByExactName,
@@ -8,7 +10,6 @@ import {
 } from "@/server/services/card-catalog-service";
 import {
   forfeitSinglePlayerGame,
-  parsePlayerIdentityFromHeaders,
   SinglePlayerHttpError,
   startSinglePlayerGame,
   getSinglePlayerGamePublic,
@@ -17,6 +18,9 @@ import {
 
 function handleErr(c: Context, e: unknown) {
   if (e instanceof SinglePlayerHttpError) {
+    return c.json({ error: e.message }, e.status as ContentfulStatusCode);
+  }
+  if (e instanceof RequestIdentityError) {
     return c.json({ error: e.message }, e.status as ContentfulStatusCode);
   }
   throw e;
@@ -50,7 +54,7 @@ export const singlePlayerRoutes = new Hono()
   })
   .post("/games", async (c) => {
     try {
-      const identity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const identity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const body = (await c.req.json().catch(() => ({}))) as {
         selectedFabSets?: string[];
       };
@@ -70,7 +74,7 @@ export const singlePlayerRoutes = new Hono()
   })
   .get("/games/:gameId", async (c) => {
     try {
-      const identity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const identity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const gameId = c.req.param("gameId");
       const snap = await getSinglePlayerGamePublic({ gameId, identity });
       return c.json(snap);
@@ -80,7 +84,7 @@ export const singlePlayerRoutes = new Hono()
   })
   .post("/games/:gameId/guess", async (c) => {
     try {
-      const identity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const identity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const gameId = c.req.param("gameId");
       const body = (await c.req.json().catch(() => ({}))) as {
         guessText?: string;
@@ -104,7 +108,7 @@ export const singlePlayerRoutes = new Hono()
   })
   .post("/games/:gameId/forfeit", async (c) => {
     try {
-      const identity = parsePlayerIdentityFromHeaders(c.req.raw.headers);
+      const identity = await resolvePlayerIdentityForGameRequest(c.req.raw.headers);
       const gameId = c.req.param("gameId");
       const out = await forfeitSinglePlayerGame({ gameId, identity });
       return c.json(out);

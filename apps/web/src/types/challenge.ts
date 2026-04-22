@@ -1,4 +1,4 @@
-export type ChallengeStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
+export type ChallengeStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 
 export type ChallengeOutcome = "WON" | "LOST" | "ABANDONED";
 
