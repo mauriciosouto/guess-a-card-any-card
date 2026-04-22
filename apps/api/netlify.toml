@@ -8,6 +8,9 @@
   # Paths in netlify.toml are repo-root-relative (even when Base directory = apps/api).
   publish = "apps/api/netlify/public"
   command = "npm run db:deploy"
+  # Skip build if no changes in API or shared packages (saves Netlify build minutes).
+  # git diff --quiet exits 0 (no diff → ignore) or 1 (diff found → build).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- apps/api packages/shared"
 
 [build.environment]
   NODE_VERSION = "20"
