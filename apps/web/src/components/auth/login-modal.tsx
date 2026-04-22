@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { LoginPanel } from "@/components/auth/login-panel";
 
 type LoginModalProps = {
@@ -13,13 +14,9 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -31,16 +28,13 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
     }
   }, [open]);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto"
-      role="presentation"
-    >
-      {/* Backdrop covers the full viewport regardless of content height */}
+  return createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="presentation">
+      {/* Backdrop — rendered via portal so backdrop-filter on the header doesn't confine it */}
       <button
         type="button"
         className="fixed inset-0 bg-black/65 backdrop-blur-[2px]"
@@ -73,6 +67,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
           <LoginPanel variant="modal" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
