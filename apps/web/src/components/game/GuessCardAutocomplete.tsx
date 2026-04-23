@@ -125,11 +125,26 @@ export function GuessCardAutocomplete({
       return;
     }
     const update = () => {
-      if (rootRef.current) setDropdownRect(rootRef.current.getBoundingClientRect());
+      if (!rootRef.current) return;
+      const next = rootRef.current.getBoundingClientRect();
+      // Only update state when position actually changed — avoids infinite loops
+      // where a portal re-render triggers a scroll/resize event which triggers another update.
+      setDropdownRect((prev) => {
+        if (
+          prev &&
+          prev.top === next.top &&
+          prev.left === next.left &&
+          prev.bottom === next.bottom &&
+          prev.width === next.width
+        ) {
+          return prev;
+        }
+        return next;
+      });
     };
     update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update, { passive: true });
+    window.addEventListener("scroll", update, { passive: true, capture: true });
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
