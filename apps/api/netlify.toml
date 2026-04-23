@@ -21,6 +21,7 @@
   node_bundler = "esbuild"
 
 # Prisma + pg adapter: keep native deps out of the bundle; copy generated client into the artifact.
+# Paths here are repo-root-relative (same as [build] publish / [functions] directory above).
 [functions.gac-api]
   external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg"]
-  included_files = ["src/generated/prisma/**"]
+  included_files = ["apps/api/src/generated/prisma/**"]
