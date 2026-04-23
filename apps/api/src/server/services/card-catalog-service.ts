@@ -52,24 +52,21 @@ export function isCardCatalogReady(): boolean {
   return catalogReady;
 }
 
-function cardHasRarity(card: Card, rarity: Rarity): boolean {
-  if (card.rarities?.includes(rarity)) return true;
-  const legacy = (card as { rarity?: Rarity }).rarity;
-  return legacy === rarity;
-}
-
 function isTokenCard(card: Card): boolean {
   if (card.types?.includes(Type.Token)) return true;
-  return cardHasRarity(card, Rarity.Token);
+  const legacy = (card as { rarity?: Rarity }).rarity;
+  return legacy === Rarity.Token;
 }
 
-function isMarvel(card: Card, printing: Printing): boolean {
-  if (cardHasRarity(card, Rarity.Marvel)) return true;
+function isMarvel(_card: Card, printing: Printing): boolean {
+  // Check only the specific printing — card.rarities can include Marvel even when
+  // the card also has normal Legendary/Majestic printings, which must not be excluded.
   return printing.rarity === Rarity.Marvel;
 }
 
-function isPromo(card: Card, printing: Printing): boolean {
-  if (cardHasRarity(card, Rarity.Promo)) return true;
+function isPromo(_card: Card, printing: Printing): boolean {
+  // Check only the specific printing — many mainstream cards have promo printings,
+  // so checking card.rarities would incorrectly exclude their non-promo versions.
   return printing.rarity === Rarity.Promo;
 }
 
@@ -105,6 +102,12 @@ function makeCatalogId(card: Card, printingIndex: number, printing: Printing): s
 
 /**
  * Builds in-memory indexes from raw FAB cards. Exported for unit tests.
+ *
+ * Cold foil (C) and Gold foil (G) printings are normally excluded to avoid duplicate
+ * entries when rainbow/non-foil versions exist. However, Legendary cards exist ONLY as
+ * cold foil — excluding CF unconditionally would drop them entirely from the catalog.
+ * The rule applied here: prefer non-CF/GF printings; fall back to CF/GF only when a
+ * card has no other playable printing.
  */
 export function buildCatalogFromFaBCards(source: Card[]): {
   allCards: CatalogCard[];
@@ -119,8 +122,24 @@ export function buildCatalogFromFaBCards(source: Card[]): {
     if (fabCard.isCardBack) continue;
 
     const printings = fabCard.printings ?? [];
+
+    // Check if at least one non-CF/GF printing passes all other filters.
+    // If yes, CF/GF printings are skipped (avoid duplicates).
+    // If no, CF/GF printings are allowed (Legendary cards only exist as CF).
+    const hasNonFoilPrinting = printings.some((p) => {
+      if (isExcludedFoiling(p)) return false;
+      if (isTokenCard(fabCard)) return false;
+      if (isMarvel(fabCard, p)) return false;
+      if (isPromo(fabCard, p)) return false;
+      return resolveImageSource(fabCard, p) != null;
+    });
+
     printings.forEach((printing, printingIndex) => {
-      if (!shouldIncludePrinting(fabCard, printing)) return;
+      if (isTokenCard(fabCard)) return;
+      if (isMarvel(fabCard, printing)) return;
+      if (isPromo(fabCard, printing)) return;
+      // Skip CF/GF only when a better printing is available for this card.
+      if (isExcludedFoiling(printing) && hasNonFoilPrinting) return;
 
       const imageUrl = resolveImageSource(fabCard, printing);
       if (!imageUrl) return;

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,9 +50,13 @@ export function GuessCardAutocomplete({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const busyRef = useRef(false);
+  /** Set to true when value is changed programmatically via dropdown selection — skips the next fetch. */
+  const skipNextFetchRef = useRef(false);
 
   const fetchSuggestions = useCallback(async (q: string) => {
     if (q.trim().length < MIN_CHARS) {
@@ -85,6 +90,10 @@ export function GuessCardAutocomplete({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
     if (value.trim().length < MIN_CHARS) {
       setSuggestions([]);
       setOpen(false);
@@ -100,11 +109,32 @@ export function GuessCardAutocomplete({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !listRef.current?.contains(t)) {
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  // Recalculate dropdown anchor whenever it opens or the window resizes/scrolls.
+  useEffect(() => {
+    if (!open || !rootRef.current) {
+      setDropdownRect(null);
+      return;
+    }
+    const update = () => {
+      if (rootRef.current) setDropdownRect(rootRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -127,6 +157,7 @@ export function GuessCardAutocomplete({
       setOpen(false);
     } else if (e.key === "Enter" && suggestions[highlight]) {
       e.preventDefault();
+      skipNextFetchRef.current = true;
       onChange(suggestions[highlight]!);
       setOpen(false);
     }
@@ -163,33 +194,45 @@ export function GuessCardAutocomplete({
         {loading ? (
           <p className="mt-1.5 text-[0.65rem] text-[var(--gold-dim)]">Searching…</p>
         ) : null}
-        {open && suggestions.length > 0 ? (
-          <ul
-            role="listbox"
-            className="absolute z-40 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-[var(--gold)]/30 bg-[var(--plum)]/98 py-1 shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
-          >
-            {suggestions.map((name, i) => (
-              <li key={name} role="option" aria-selected={i === highlight}>
-                <button
-                  type="button"
-                  className={cn(
-                    "w-full px-3 py-2 text-left text-sm transition-colors",
-                    i === highlight
-                      ? "bg-[var(--gold)]/20 text-[var(--gold-bright)]"
-                      : "text-[var(--parchment)] hover:bg-[var(--void)]/70",
-                  )}
-                  onMouseDown={(e) => e.preventDefault()}
+        {open && suggestions.length > 0 && dropdownRect && typeof document !== "undefined"
+          ? createPortal(
+              <ul
+                ref={listRef}
+                role="listbox"
+                style={{
+                  position: "fixed",
+                  top: dropdownRect.bottom + 4,
+                  left: dropdownRect.left,
+                  width: dropdownRect.width,
+                  zIndex: 9999,
+                }}
+                className="max-h-52 overflow-y-auto rounded-lg border border-[var(--gold)]/30 bg-[var(--plum)]/98 py-1 shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+              >
+                {suggestions.map((name, i) => (
+                  <li key={name} role="option" aria-selected={i === highlight}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-sm transition-colors",
+                        i === highlight
+                          ? "bg-[var(--gold)]/20 text-[var(--gold-bright)]"
+                          : "text-[var(--parchment)] hover:bg-[var(--void)]/70",
+                      )}
+                      onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
+                    skipNextFetchRef.current = true;
                     onChange(name);
                     setOpen(false);
                   }}
-                >
-                  {name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+                    >
+                      {name}
+                    </button>
+                  </li>
+                ))}
+              </ul>,
+              document.body,
+            )
+          : null}
       </div>
       <div className="flex w-full flex-col items-end gap-0">
         <Button type="submit" disabled={disabled} className="shrink-0">
