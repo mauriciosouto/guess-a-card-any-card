@@ -5,8 +5,8 @@
 # Env vars (Functions + build): DATABASE_URL, CORS_ORIGIN, COOP_REALTIME_* as needed.
 
 [build]
-  # Paths are relative to base directory (apps/api).
-  publish = "netlify/public"
+  # Paths in netlify.toml are repo-root-relative (even when Base directory = apps/api).
+  publish = "apps/api/netlify/public"
   command = "npm run db:deploy"
   # Skip build if no changes in API or shared packages (saves Netlify build minutes).
   # Guard: only apply when CACHED_COMMIT_REF is set (skips on first deploy / new branches).
@@ -16,8 +16,8 @@
   NODE_VERSION = "20"
 
 [functions]
-  # Path relative to base directory (apps/api) — resolves to apps/api/netlify/functions.
-  directory = "netlify/functions"
+  # Path repo-root-relative — resolves to /opt/build/repo/apps/api/netlify/functions.
+  directory = "apps/api/netlify/functions"
   node_bundler = "esbuild"
 
 # Prisma + pg adapter: keep native deps out of the bundle; copy generated client into the artifact.
