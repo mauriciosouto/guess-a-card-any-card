@@ -17,7 +17,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "realtime:dev": "tsx scripts/coop-realtime-server.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "build:fn": "esbuild netlify/functions/gac-api.mts --bundle --platform=node --target=node20 --format=esm --external:@prisma/client --external:@prisma/adapter-pg --external:pg --external:ws --tsconfig=tsconfig.json --outfile=netlify/dist/gac-api.mjs"
   },
   "dependencies": {
     "@flesh-and-blood/cards": "^3.6.239",

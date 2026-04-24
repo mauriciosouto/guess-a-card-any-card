@@ -1,13 +1,15 @@
 # Deploy with Base directory = `apps/api` (Site settings → Build & deploy → Base directory).
 # Install command (same UI section): cd ../.. && npm ci
-# Build runs after install from `apps/api`; `postinstall` on @gac/api already runs `prisma generate`.
+# Build runs after install from `apps/api` working directory.
 #
-# Env vars (Functions + build): DATABASE_URL, CORS_ORIGIN, COOP_REALTIME_* as needed.
+# Env vars (Functions + build): DATABASE_URL, CORS_ORIGIN, SUPABASE_URL, SUPABASE_ANON_KEY as needed.
 
 [build]
   # Paths in netlify.toml are repo-root-relative (even when Base directory = apps/api).
   publish = "apps/api/netlify/public"
-  command = "npm run db:deploy"
+  # 1. Apply DB migrations. 2. Pre-bundle the function as ESM so import.meta.url is valid at runtime.
+  #    (Netlify's default esbuild bundler outputs CJS, which breaks Prisma's generated client.)
+  command = "npm run db:deploy && npm run build:fn"
   # Skip build if no changes in API or shared packages (saves Netlify build minutes).
   # Guard: only apply when CACHED_COMMIT_REF is set (skips on first deploy / new branches).
   ignore = "[ -z \"$CACHED_COMMIT_REF\" ] && exit 1; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- apps/api packages/shared"
@@ -16,12 +18,11 @@
   NODE_VERSION = "20"
 
 [functions]
-  # Path repo-root-relative — resolves to /opt/build/repo/apps/api/netlify/functions.
-  directory = "apps/api/netlify/functions"
+  # Pre-bundled ESM output from `build:fn` lives here (repo-root-relative).
+  directory = "apps/api/netlify/dist"
   node_bundler = "esbuild"
 
-# Prisma + pg adapter: keep native deps out of the bundle; copy generated client into the artifact.
-# Paths here are repo-root-relative (same as [build] publish / [functions] directory above).
+# Prisma + pg adapter: kept external so Netlify installs them alongside the function.
 [functions.gac-api]
   external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg"]
   included_files = ["apps/api/src/generated/prisma/**"]
