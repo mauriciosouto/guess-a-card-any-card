@@ -22,6 +22,7 @@
     "db:generate": "npm run db:generate --workspace=@gac/api",
     "db:migrate:dev": "npm run db:migrate:dev --workspace=@gac/api",
     "db:deploy": "npm run db:deploy --workspace=@gac/api",
+    "build:fn": "npm run build:fn --workspace=@gac/api",
     "db:push": "npm run db:push --workspace=@gac/api",
     "db:seed": "npm run db:seed --workspace=@gac/api",
     "db:studio": "npm run db:studio --workspace=@gac/api",
