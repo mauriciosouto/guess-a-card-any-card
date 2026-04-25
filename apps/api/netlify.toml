@@ -23,6 +23,6 @@
   node_bundler = "esbuild"
 
 # Prisma + pg adapter: kept external so Netlify installs them alongside the function.
+# The generated Prisma client is already bundled by build:fn; no included_files needed.
 [functions.gac-api]
   external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg"]
-  included_files = ["apps/api/src/generated/prisma/**"]
