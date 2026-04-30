@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppFrame } from "@/components/layout/app-frame";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
@@ -11,6 +12,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           {children}
         </AppFrame>
       </main>
+      <SiteFooter />
     </>
   );
 }
