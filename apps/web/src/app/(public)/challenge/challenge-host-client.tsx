@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GuessCardAutocomplete } from "@/components/game/GuessCardAutocomplete";
+import { ModeHowToPanel } from "@/components/onboarding/mode-how-to-panel";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { challengeFetch } from "@/lib/challenge/challenge-api";
@@ -16,6 +17,29 @@ import type {
 
 const HOST_POLL_MS = 4000;
 const RESULT_RETRY_DELAYS_MS = [0, 400, 800, 1600];
+
+const CHALLENGE_HOW_IT_WORKS = [
+  "1. Choose a card - Search and select the exact card you want to use for the challenge.",
+  "2. Create the challenge - Once created, you will get a unique link for that challenge.",
+  "3. Share the link - Send the link to a friend, or open it yourself in another tab to play on the same device.",
+  "4. They play one run - The player gets a single run with one guess per step while clues reveal step by step.",
+  "5. One attempt only - Each challenge can be played once. Once completed or abandoned, it cannot be replayed.",
+  "6. See the result - As host, you will see whether they won or lost, how many attempts they used, and how long it took.",
+] as const;
+
+const CHALLENGE_RULES = [
+  "The challenged player cannot replay the same challenge.",
+  "Leaving the game counts as an abandoned run.",
+  "Abandoned runs are treated as losses.",
+  "Results are visible to the host once the challenge is completed.",
+] as const;
+
+const CHALLENGE_TIPS = [
+  "Choose cards that are recognizable but not too obvious.",
+  "Great challenges balance difficulty and fun.",
+  "Try to beat your friends with fewer attempts.",
+  "Sharing challenges in Discord can make them more fun.",
+] as const;
 
 function playUrl(challengeId: string): string {
   if (typeof window === "undefined") return `/challenge/${challengeId}`;
@@ -269,29 +293,46 @@ export function ChallengeHostClient() {
       ) : null}
 
       {!challengeId ? (
-        <Panel variant="textured" className="border-[var(--gold)]/15 p-5 sm:p-6">
-          <p className="text-sm leading-relaxed text-[var(--parchment-dim)]">
-            Search the archive, pick the card the other player must name, then share one link. They get the
-            same step-by-step veil as solitary reading — one attempt per step, one run only.
-          </p>
-          <p className="mt-4 font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
-            Card
-          </p>
-          <div className="mt-3">
-            <GuessCardAutocomplete
-              value={pickText}
-              onChange={setPickText}
-              onSubmit={() => void createChallenge()}
-              disabled={busy}
-              placeholder="Type at least 3 letters, then pick from suggestions…"
-              submitLabel="Create challenge"
-              asyncFeedback={busy ? "Creating challenge…" : null}
-            />
-          </div>
-          <p className="mt-3 text-[0.7rem] text-[var(--mist)]">
-            The name must match a suggestion (or the exact catalog spelling) so we can bind one printing.
-          </p>
-        </Panel>
+        <>
+          <ModeHowToPanel
+            summaryLabel="How Challenge mode works"
+            title="Challenge a Friend"
+            intro="Pick a card and challenge someone to guess it. They’ll play a single run using the same reveal system — and you’ll see how they did."
+            howItWorks={CHALLENGE_HOW_IT_WORKS}
+            trackedStats={CHALLENGE_RULES}
+            middleSectionTitle="Important rules"
+            tips={CHALLENGE_TIPS}
+          />
+
+          <Panel
+            id="challenge-create-form"
+            variant="textured"
+            className="border-[var(--gold)]/15 p-5 sm:p-6"
+          >
+            <p className="text-sm leading-relaxed text-[var(--parchment-dim)]">
+              Host flow: choose the card and create the link. Player flow: open that link and play one
+              single-run attempt.
+            </p>
+            <p className="mt-4 font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[var(--gold-dim)]">
+              Card
+            </p>
+            <div className="mt-3">
+              <GuessCardAutocomplete
+                value={pickText}
+                onChange={setPickText}
+                onSubmit={() => void createChallenge()}
+                disabled={busy}
+                placeholder="Type at least 3 letters, then pick from suggestions…"
+                submitLabel="Create challenge"
+                asyncFeedback={busy ? "Creating challenge…" : null}
+              />
+            </div>
+            <p className="mt-3 text-[0.7rem] text-[var(--mist)]">
+              The name must match a suggestion (or the exact catalog spelling) so we can bind one
+              printing.
+            </p>
+          </Panel>
+        </>
       ) : null}
 
       {challengeId ? (

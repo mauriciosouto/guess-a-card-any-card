@@ -4,11 +4,35 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { RouteShell } from "@/components/layout/route-shell";
+import { ModeHowToPanel } from "@/components/onboarding/mode-how-to-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/ui/panel";
 import { coopFetch } from "@/lib/coop/coop-api";
 import { getOrCreateGuestId } from "@/lib/coop/guest-id";
+
+const COOP_HOW_IT_WORKS = [
+  "1. Join or create a room - Start a co-op game and invite other players to join your room.",
+  "2. Everyone sees the same card - All players share the same hidden card and the same reveal steps.",
+  "3. Clues reveal step by step - Each step uncovers more information, just like in Solo mode.",
+  "4. Decide as a team - Discuss the clues and agree on the best guess before submitting.",
+  "5. One guess per step (shared) - The team gets one guess per step, not one guess per player.",
+  "6. Win or lose together - Guess correctly and everyone wins; run out of steps and everyone loses.",
+] as const;
+
+const COOP_RULES = [
+  "All players share the same attempts.",
+  "One guess is submitted for the whole team.",
+  "Leaving the game may end the run depending on room state.",
+  "The game ends for everyone at the same time.",
+] as const;
+
+const COOP_TIPS = [
+  "Communicate — different players notice different clues.",
+  "Do not rush early guesses unless you are confident.",
+  "Use each step to narrow down possibilities together.",
+  "Smaller groups tend to coordinate more easily.",
+] as const;
 
 export default function CoopPage() {
   const router = useRouter();
@@ -56,7 +80,17 @@ export default function CoopPage() {
       description="One guess binds each veil: a fixed speaking order, the active seer alone may name the card, and if they are absent the host may voice the circle."
       className="max-w-3xl"
     >
-      <div className="grid gap-6 sm:grid-cols-2">
+      <ModeHowToPanel
+        summaryLabel="How Co-op works"
+        title="Play Together (Co-op)"
+        intro="Work together to guess the same card. Share clues, discuss possibilities, and solve it as a team before you run out of attempts."
+        howItWorks={COOP_HOW_IT_WORKS}
+        trackedStats={COOP_RULES}
+        middleSectionTitle="Important rules"
+        tips={COOP_TIPS}
+      />
+
+      <div id="coop-room-controls" className="mt-6 grid gap-6 sm:grid-cols-2">
         <Panel variant="textured" className="border-[var(--gold)]/15 p-5">
           <h2 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gold-bright)]">
             Open a circle

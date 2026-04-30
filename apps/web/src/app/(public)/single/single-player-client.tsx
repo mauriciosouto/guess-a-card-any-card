@@ -9,6 +9,7 @@ import { PendingRitualNote } from "@/components/game/PendingRitualNote";
 import { PuzzleViewer } from "@/components/game/PuzzleViewer";
 import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { SinglePlayerProgressHUD } from "@/components/game/SinglePlayerProgressHUD";
+import { ModeHowToPanel } from "@/components/onboarding/mode-how-to-panel";
 import { ShareGameResultButton } from "@/components/share/share-game-result-button";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -68,6 +69,14 @@ function SinglePlayerLobby({ error, busy, asyncFeedback, start }: SinglePlayerLo
 
   return (
     <div className="space-y-6">
+      <ModeHowToPanel
+        summaryLabel="How Single Player works"
+        title="Single Player"
+        intro="Practice your card knowledge at your own pace. A hidden Flesh and Blood card is revealed step by step, and your goal is to guess it using the fewest attempts possible."
+        howItWorks={SINGLE_HOW_IT_WORKS}
+        trackedStats={SINGLE_TRACKED_STATS}
+        tips={SINGLE_TIPS}
+      />
       {error ? (
         <p className="rounded-lg border border-[var(--blood)]/35 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)]">
           {error}
@@ -95,7 +104,7 @@ function SinglePlayerLobby({ error, busy, asyncFeedback, start }: SinglePlayerLo
             onClick={() => void start([...selectedFabSets])}
             disabled={busy || setsLoading}
           >
-            Start
+            Start a Solo Run
           </Button>
           <Button variant="outline" asChild>
             <Link href="/">Home</Link>
@@ -118,6 +127,29 @@ export type SinglePlayerClientProps = {
 
 const CHALLENGE_FORFEIT_CONFIRM =
   "This ends the challenge as abandoned. Continue?";
+
+const SINGLE_HOW_IT_WORKS = [
+  "1. Start a solo run - Choose your set filters, or leave them empty to play with the full card pool.",
+  "2. Study each reveal step - Every step uncovers one new clue from the card: artwork, type, stats, text, or other visible card information.",
+  "3. Make one guess per step - You get one guess after each reveal step. You can guess early if you recognize the card, or wait for more information.",
+  "4. Win by guessing the card - If your guess matches the card name, you win immediately.",
+  "5. Lose if you run out of steps - If you reach the final reveal without guessing correctly, the run ends as a loss.",
+] as const;
+
+const SINGLE_TRACKED_STATS = [
+  "games played",
+  "wins and losses",
+  "best number of attempts",
+  "average attempts to win",
+  "per-card stats",
+  "leaderboard progress",
+] as const;
+
+const SINGLE_TIPS = [
+  "Look for unique art shapes, pitch/cost clues, and type lines.",
+  "Text clues can be powerful, but they may appear later.",
+  "Fewer attempts matter more than simply winning.",
+] as const;
 
 export function SinglePlayerClient({
   initialGameId = null,
