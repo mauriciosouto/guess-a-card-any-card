@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
 import { Panel } from "@/components/ui/panel";
@@ -111,32 +112,43 @@ export function GameHistoryPanel({
         </Panel>
       </div>
 
-      <div
-        className={cn(
-          "fixed left-1/2 z-30 -translate-x-1/2 lg:hidden",
-          "bottom-[max(1rem,env(safe-area-inset-bottom))]",
-          mobileFabClassName,
-        )}
-      >
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="border border-[var(--gold)]/25 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_24px_rgba(201,162,39,0.12)]"
-          onClick={() => setDrawerOpen(true)}
-        >
-          Sigil log
-        </Button>
-      </div>
-
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        title="Sigil log"
-        panelClassName={drawerPanelClassName}
-      >
-        <HistoryList entries={entries} />
-      </Drawer>
+      {typeof document !== "undefined"
+        ? createPortal(
+            <>
+              {/*
+                Portal avoids position:fixed being trapped by ancestor backdrop-filter
+                (e.g. single-player guess bar), which made the FAB float over the card/HUD.
+                z-[39] stays below the guess chrome (z-40) and header menus; drawer stays z-50.
+              */}
+              <div
+                className={cn(
+                  "pointer-events-auto fixed left-1/2 z-[39] -translate-x-1/2 lg:hidden",
+                  "bottom-[max(1rem,env(safe-area-inset-bottom))]",
+                  mobileFabClassName,
+                )}
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="border border-[var(--gold)]/25 shadow-[0_8px_32px_rgba(0,0,0,0.55),0_0_24px_rgba(201,162,39,0.12)]"
+                  onClick={() => setDrawerOpen(true)}
+                >
+                  Sigil log
+                </Button>
+              </div>
+              <Drawer
+                open={drawerOpen}
+                onOpenChange={setDrawerOpen}
+                title="Sigil log"
+                panelClassName={drawerPanelClassName}
+              >
+                <HistoryList entries={entries} />
+              </Drawer>
+            </>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

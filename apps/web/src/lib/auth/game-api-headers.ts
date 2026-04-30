@@ -18,6 +18,11 @@ export function mergeActorAuthHeaders(
   }
 }
 
+/**
+ * Returns a Supabase access token suitable for `Authorization: Bearer` on the game API.
+ * Proactively refreshes when the session is missing or near expiry so `/api/profile/me` and
+ * other authenticated routes do not 401 while the UI still shows a signed-in user.
+ */
 export async function getSupabaseAccessTokenForApi(): Promise<string | null> {
   if (typeof window === "undefined") {
     return null;
@@ -26,8 +31,28 @@ export async function getSupabaseAccessTokenForApi(): Promise<string | null> {
   if (!supabase) {
     return null;
   }
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return null;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  /** Refresh slightly before expiry — stale JWTs fail API JWKS verification and yield 401. */
+  const skewSec = 90;
+  const expiresAt = session.expires_at ?? 0;
+
+  if (expiresAt < nowSec + skewSec) {
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    if (error || !refreshed.session?.access_token) {
+      return null;
+    }
+    return refreshed.session.access_token;
+  }
+
+  return session.access_token;
 }
 
 /** Builds headers for a game API `fetch` (client-side). */
