@@ -11,6 +11,7 @@ import { SetMultiSelect } from "@/components/game/SetMultiSelect";
 import { StepIndicator } from "@/components/game/StepIndicator";
 import { TurnIndicator } from "@/components/game/TurnIndicator";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/ui/panel";
 import { useCoopRoomRealtime } from "@/hooks/use-coop-room-realtime";
@@ -37,6 +38,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
   const [asyncFeedback, setAsyncFeedback] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [copyLinkFailed, setCopyLinkFailed] = useState(false);
+  const [endGameForAllOpen, setEndGameForAllOpen] = useState(false);
   const stepStartedAt = useRef<number>(Date.now());
 
   const loadSets = useCallback(async () => {
@@ -183,10 +185,8 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
     }
   }
 
-  async function hostEndGame() {
-    if (!window.confirm("End the ritual for everyone? The card will be revealed as ended early.")) {
-      return;
-    }
+  async function confirmEndGameForEveryone() {
+    setEndGameForAllOpen(false);
     setBusy(true);
     setError(null);
     try {
@@ -381,6 +381,16 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
 
   return (
     <div className="flex w-full flex-col gap-8">
+      <ConfirmModal
+        open={endGameForAllOpen}
+        title="End game for everyone?"
+        description="The card will be revealed as ended early. This stops the ritual for every seer in the circle."
+        confirmLabel="End for everyone"
+        cancelLabel="Cancel"
+        destructive
+        onCancel={() => setEndGameForAllOpen(false)}
+        onConfirm={() => void confirmEndGameForEveryone()}
+      />
       {error ? (
         <p className="rounded-lg border border-[var(--blood)]/40 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)]">
           {error}
@@ -595,7 +605,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
               busy={busy}
               isHost={snap.requesterIsHost}
               onLeave={() => void leaveCircle()}
-              onEndGame={() => void hostEndGame()}
+              onEndGame={() => setEndGameForAllOpen(true)}
               className="hidden lg:flex"
             />
           </div>
@@ -614,7 +624,7 @@ export function CoopRoomClient({ roomId }: CoopRoomClientProps) {
             busy={busy}
             isHost={snap.requesterIsHost}
             onLeave={() => void leaveCircle()}
-            onEndGame={() => void hostEndGame()}
+            onEndGame={() => setEndGameForAllOpen(true)}
             className="order-5 col-span-full lg:hidden"
           />
         </div>

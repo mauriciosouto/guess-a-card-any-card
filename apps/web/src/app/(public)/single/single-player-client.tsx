@@ -12,6 +12,7 @@ import { SinglePlayerProgressHUD } from "@/components/game/SinglePlayerProgressH
 import { ModeHowToPanel } from "@/components/onboarding/mode-how-to-panel";
 import { ShareGameResultButton } from "@/components/share/share-game-result-button";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Panel } from "@/components/ui/panel";
 import {
   useSinglePlayerFabSets,
@@ -121,7 +122,7 @@ export type SinglePlayerClientProps = {
   initialGameId?: string | null;
   /** Replace default done-screen actions (Play again / Home). */
   doneActions?: ReactNode;
-  /** Override forfeit `window.confirm` (defaults to challenge copy when `initialGameId` is set). */
+  /** Override forfeit confirmation modal body (defaults to challenge copy when `initialGameId` is set). */
   forfeitConfirmMessage?: string;
 };
 
@@ -166,7 +167,11 @@ export function SinglePlayerClient({
     asyncFeedback,
     start,
     submitGuess,
-    forfeit,
+    forfeitModalOpen,
+    forfeitMessage,
+    requestForfeit,
+    dismissForfeit,
+    commitForfeit,
     reset,
   } = useSinglePlayerSession(
     initialGameId || forfeitConfirmMessage
@@ -377,12 +382,23 @@ export function SinglePlayerClient({
   const currentStep = game.currentStep ?? 1;
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-6",
-        "pb-[calc(10.5rem+env(safe-area-inset-bottom,0px))] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] lg:items-start lg:gap-10 lg:pb-0",
-      )}
-    >
+    <>
+      <ConfirmModal
+        open={forfeitModalOpen}
+        title={initialGameId ? "Abandon this challenge?" : "Yield reading?"}
+        description={forfeitMessage}
+        confirmLabel={initialGameId ? "Abandon" : "Yield"}
+        cancelLabel="Stay"
+        destructive
+        onCancel={dismissForfeit}
+        onConfirm={() => void commitForfeit()}
+      />
+      <div
+        className={cn(
+          "flex flex-col gap-6",
+          "pb-[calc(10.5rem+env(safe-area-inset-bottom,0px))] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] lg:items-start lg:gap-10 lg:pb-0",
+        )}
+      >
       {error ? (
         <p className="rounded-lg border border-[var(--blood)]/35 bg-[var(--blood)]/10 px-3 py-2 text-center text-sm text-[var(--gold-bright)] lg:col-span-2">
           {error}
@@ -445,7 +461,7 @@ export function SinglePlayerClient({
                   size="sm"
                   className="border-[var(--blood)]/40 text-[var(--parchment-dim)] hover:border-[var(--blood)]/55 hover:text-[var(--blood)]"
                   disabled={busy}
-                  onClick={() => void forfeit()}
+                  onClick={requestForfeit}
                 >
                   Yield reading
                 </Button>
@@ -460,5 +476,6 @@ export function SinglePlayerClient({
         />
       </div>
     </div>
+    </>
   );
 }

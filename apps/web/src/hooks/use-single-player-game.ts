@@ -17,7 +17,7 @@ export type SinglePlayerPhase = "setup" | "play" | "done";
 export type UseSinglePlayerSessionOptions = {
   /** When set, skips setup and loads this game (challenge / resume). */
   initialGameId?: string | null;
-  /** `window.confirm` text for yield/forfeit (e.g. challenge). */
+  /** Body text for the yield/forfeit confirmation modal (e.g. challenge copy). */
   forfeitConfirmMessage?: string;
 };
 
@@ -63,6 +63,7 @@ export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asyncFeedback, setAsyncFeedback] = useState<string | null>(null);
+  const [forfeitModalOpen, setForfeitModalOpen] = useState(false);
   const stepStartedAt = useRef(Date.now());
 
   const applySnapshot = useCallback((snap: SingleGameSnapshot) => {
@@ -153,11 +154,18 @@ export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) 
     }
   }, [gameId, guess, applySnapshot]);
 
-  const forfeit = useCallback(async () => {
+  const requestForfeit = useCallback(() => {
     if (!gameId || game?.status !== "IN_PROGRESS") return;
-    if (!window.confirm(forfeitConfirm)) {
-      return;
-    }
+    setForfeitModalOpen(true);
+  }, [gameId, game?.status]);
+
+  const dismissForfeit = useCallback(() => {
+    setForfeitModalOpen(false);
+  }, []);
+
+  const commitForfeit = useCallback(async () => {
+    if (!gameId || game?.status !== "IN_PROGRESS") return;
+    setForfeitModalOpen(false);
     setBusy(true);
     setAsyncFeedback("Closing the veil…");
     setError(null);
@@ -170,7 +178,7 @@ export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) 
       setAsyncFeedback(null);
       setBusy(false);
     }
-  }, [gameId, game?.status, applySnapshot, forfeitConfirm]);
+  }, [gameId, game?.status, applySnapshot]);
 
   const reset = useCallback(() => {
     setPhase("setup");
@@ -179,6 +187,7 @@ export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) 
     setGuess("");
     setError(null);
     setAsyncFeedback(null);
+    setForfeitModalOpen(false);
   }, []);
 
   return {
@@ -192,7 +201,11 @@ export function useSinglePlayerSession(options?: UseSinglePlayerSessionOptions) 
     asyncFeedback,
     start,
     submitGuess,
-    forfeit,
+    forfeitModalOpen,
+    forfeitMessage: forfeitConfirm,
+    requestForfeit,
+    dismissForfeit,
+    commitForfeit,
     reset,
   };
 }
